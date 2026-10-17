@@ -26,6 +26,7 @@ The user's `~/.bashrc` wraps this as `mdview() { node ~/projects/mdview/mdview.m
   - `/__quit` exits the server.
   - Anything else is served as a static file.
 - **`page.js` / `page.css`**: inlined into every page. They're read once at startup and concatenated with the vendored CSS from `node_modules`, so restart mdview after editing them.
+- **`icon.svg`**: also read once at startup, and embedded as a `data:` favicon. Edge uses it for the app window's title bar and taskbar icon. It switches stroke color with `prefers-color-scheme` so it stays visible in light mode. It's Lucide's "view" icon, chosen by the user; keep the ISC license comment inside it.
 - **Serve root** is the file's git toplevel, or its directory if it isn't in a repo. Requests outside the root get a 403. Relative links to other `.md` files render inside the viewer.
 - **Lifecycle:** the process exits when the window closes. It waits 1.5s after the last SSE client disconnects, which lets navigation between pages reconnect in time. If no client connects within 30s it exits too, so `--no-open` test servers die on their own.
 - **File watching** watches the *directory*, not the file, because Neovim saves by rename.

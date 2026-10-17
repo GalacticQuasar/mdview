@@ -83,13 +83,14 @@ const css = [
   + `\n@media (prefers-color-scheme: dark) {${fs.readFileSync(path.join(MODULES, 'highlight.js/styles/github-dark.css'), 'utf8')}}`
   + '\n' + fs.readFileSync(path.join(HERE, 'page.css'), 'utf8');
 const js = fs.readFileSync(path.join(HERE, 'page.js'), 'utf8');
+const icon = 'data:image/svg+xml,' + encodeURIComponent(fs.readFileSync(path.join(HERE, 'icon.svg'), 'utf8'));
 
 const escapeHtml = (s) => s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
 
 const page = (p) => `<!doctype html>
 <html><head><meta charset="utf-8">
 <title>${escapeHtml(path.basename(p))}</title>
-<link rel="icon" href="data:,">
+<link rel="icon" type="image/svg+xml" href="${icon}">
 <style>${css}</style>
 </head><body class="markdown-body">
 <article id="content">${render(p)}</article>
