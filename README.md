@@ -26,9 +26,27 @@ Works on Linux, macOS, and WSL. It needs Node and one of these browsers:
 
 ```sh
 npm install
-# then either `npm link`, or a shell function:
+```
+
+Then make the `mdview` command available, either with `npm link` or by adding a function to your
+shell's startup file (`~/.bashrc` for bash, `~/.zshrc` for zsh):
+
+```sh
 mdview() { node ~/projects/mdview/mdview.mjs "$@"; }
 ```
+
+The function is also the place to set a default window size and position, so every window
+opens the same way:
+
+```sh
+mdview() { node ~/projects/mdview/mdview.mjs --size 933x973 --pos 387,0 "$@"; }
+```
+
+Sizes and positions are in scaled pixels, not physical screen pixels. With display scaling
+(e.g. 150% on Windows), divide your screen's pixel numbers by the scale factor: a
+1400×1460 window at 150% is `--size 933x973`.
+
+After editing, open a new terminal or reload the file (e.g. `source ~/.bashrc`).
 
 ## Usage
 
