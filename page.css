@@ -1,0 +1,33 @@
+:root { color-scheme: light dark; scrollbar-width: none; }
+::-webkit-scrollbar { display: none; }
+/* body carries .markdown-body so its theme colors cover the whole window */
+body { margin: 0; min-height: 100vh; }
+/* github-markdown-css already pads/colors <pre>; drop highlight.js's duplicate */
+.markdown-body pre code.hljs { padding: 0; background: transparent; }
+#content {
+  box-sizing: border-box;
+  padding: 32px 40px 50vh;
+}
+
+#mdview-bar, #mdview-status {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  gap: 6px;
+  padding: 4px 10px;
+  font: 14px/1.4 ui-monospace, SFMono-Regular, Consolas, monospace;
+  background: var(--bgColor-muted, #f6f8fa);
+  border-top: 1px solid var(--borderColor-default, #d0d7de);
+  color: var(--fgColor-default, inherit);
+}
+#mdview-bar[hidden], #mdview-status[hidden] { display: none; }
+#mdview-search {
+  flex: 1;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+}

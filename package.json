@@ -1,0 +1,19 @@
+{
+  "name": "mdview",
+  "version": "1.0.0",
+  "description": "View rendered Markdown with vim motions",
+  "scripts": {},
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "module",
+  "dependencies": {
+    "github-markdown-css": "^5.9.0",
+    "highlight.js": "^11.12.0",
+    "markdown-it": "^15.0.3",
+    "markdown-it-github-alerts": "^1.0.1"
+  },
+  "bin": {
+    "mdview": "mdview.mjs"
+  }
+}
