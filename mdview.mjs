@@ -5,6 +5,7 @@
 import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
+import os from 'node:os';
 import { spawn, execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import MarkdownIt from 'markdown-it';
@@ -175,18 +176,25 @@ const isWSL = fs.existsSync('/proc/version') && /microsoft/i.test(fs.readFileSyn
 
 function findBrowser() {
   if (process.env.MDVIEW_BROWSER) return process.env.MDVIEW_BROWSER;
+  const macApps = ['Google Chrome.app/Contents/MacOS/Google Chrome',
+                   'Microsoft Edge.app/Contents/MacOS/Microsoft Edge',
+                   'Chromium.app/Contents/MacOS/Chromium',
+                   'Brave Browser.app/Contents/MacOS/Brave Browser'];
   const candidates = isWSL
     ? ['/mnt/c/Program Files (x86)/Microsoft/Edge/Application/msedge.exe',
        '/mnt/c/Program Files/Microsoft/Edge/Application/msedge.exe',
        '/mnt/c/Program Files/Google/Chrome/Application/chrome.exe']
-    : ['/usr/bin/chromium', '/usr/bin/chromium-browser', '/usr/bin/google-chrome', '/usr/bin/microsoft-edge'];
+    : process.platform === 'darwin'
+      ? ['/Applications', path.join(os.homedir(), 'Applications')].flatMap((dir) => macApps.map((app) => path.join(dir, app)))
+      : ['/usr/bin/chromium', '/usr/bin/chromium-browser', '/usr/bin/google-chrome', '/usr/bin/microsoft-edge'];
   return candidates.find((c) => fs.existsSync(c));
 }
 
 // Separate profile so mdview windows don't attach to your normal browser session
 // (which would ignore --window-size/--window-position).
 function profileDir() {
-  if (!isWSL) return path.join(process.env.XDG_CACHE_HOME ?? path.join(process.env.HOME, '.cache'), 'mdview');
+  if (process.platform === 'darwin') return path.join(os.homedir(), 'Library', 'Caches', 'mdview');
+  if (!isWSL) return path.join(process.env.XDG_CACHE_HOME ?? path.join(os.homedir(), '.cache'), 'mdview');
   const cache = path.join(HERE, '.localappdata');
   let local;
   try { local = fs.readFileSync(cache, 'utf8').trim(); } catch {}
@@ -210,8 +218,24 @@ function openWindow(url) {
   spawn(browser, args, { detached: true, stdio: 'ignore', cwd: isWSL ? '/mnt/c' : undefined }).unref();
 }
 
-server.listen(0, '127.0.0.1', () => {
-  const url = `http://localhost:${server.address().port}${urlFor(file)}`;
+// In WSL's NAT mode, Windows reaches WSL's localhost through a relay that takes up to
+// ~1.5s to pick up a new port, so the window often loads before it's reachable.
+// The VM's own address is reachable from Windows immediately (and only from the host).
+// Not used in mirrored mode, where that address is the machine's LAN IP.
+function listenHost() {
+  if (!isWSL) return '127.0.0.1';
+  try {
+    if (execFileSync('wslinfo', ['--networking-mode'], { stdio: ['ignore', 'pipe', 'ignore'] }).toString().trim() !== 'nat') {
+      return '127.0.0.1';
+    }
+  } catch { return '127.0.0.1'; }
+  const vnic = os.networkInterfaces().eth0?.find((a) => a.family === 'IPv4');
+  return vnic?.address ?? '127.0.0.1';
+}
+
+const host = listenHost();
+server.listen(0, host, () => {
+  const url = `http://${host === '127.0.0.1' ? 'localhost' : host}:${server.address().port}${urlFor(file)}`;
   if (opts.open) openWindow(url);
   else console.log(url);
 });
