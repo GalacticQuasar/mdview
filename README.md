@@ -20,7 +20,7 @@ Works on Linux, macOS, and WSL. It needs Node and one of these browsers:
 - **WSL:** Edge or Chrome on the Windows side, so the window is a native Windows window while the
   server runs in WSL
 - **macOS:** Chrome, Edge, Chromium, or Brave in `/Applications` or `~/Applications`
-- **Linux:** Chromium, Chrome, or Edge in `/usr/bin`
+- **Linux:** Chrome, Chromium, or Edge in `/usr/bin`
 
 ## Install
 

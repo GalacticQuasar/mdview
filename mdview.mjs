@@ -186,15 +186,21 @@ function findBrowser() {
        '/mnt/c/Program Files/Google/Chrome/Application/chrome.exe']
     : process.platform === 'darwin'
       ? ['/Applications', path.join(os.homedir(), 'Applications')].flatMap((dir) => macApps.map((app) => path.join(dir, app)))
-      : ['/usr/bin/chromium', '/usr/bin/chromium-browser', '/usr/bin/google-chrome', '/usr/bin/microsoft-edge'];
+      : ['/usr/bin/google-chrome', '/usr/bin/chromium', '/usr/bin/chromium-browser', '/usr/bin/microsoft-edge'];
   return candidates.find((c) => fs.existsSync(c));
 }
 
+// e.g. "chrome", "msedge", "google-chrome", "microsoft-edge"
+const browserName = (browser) =>
+  path.basename(browser).replace(/\.exe$/i, '').toLowerCase().replace(/[^a-z0-9]+/g, '-');
+
 // Separate profile so mdview windows don't attach to your normal browser session
-// (which would ignore --window-size/--window-position).
-function profileDir() {
-  if (process.platform === 'darwin') return path.join(os.homedir(), 'Library', 'Caches', 'mdview');
-  if (!isWSL) return path.join(process.env.XDG_CACHE_HOME ?? path.join(os.homedir(), '.cache'), 'mdview');
+// (which would ignore --window-size/--window-position). One per browser, since
+// browsers can't safely share a user-data-dir.
+function profileDir(browser) {
+  const name = browserName(browser);
+  if (process.platform === 'darwin') return path.join(os.homedir(), 'Library', 'Caches', 'mdview', name);
+  if (!isWSL) return path.join(process.env.XDG_CACHE_HOME ?? path.join(os.homedir(), '.cache'), 'mdview', name);
   const cache = path.join(HERE, '.localappdata');
   let local;
   try { local = fs.readFileSync(cache, 'utf8').trim(); } catch {}
@@ -203,11 +209,11 @@ function profileDir() {
       .toString().trim();
     fs.writeFileSync(cache, local);
   }
-  return `${local}\\mdview\\profile`;
+  return `${local}\\mdview\\${name}`;
 }
 
 // Turn off Edge's "mini menu" (the popup toolbar over selected text). Pages can't suppress it,
-// so set the profile pref directly. Unknown to other browsers, which ignore it.
+// so set the profile pref directly.
 function disableMiniMenu(profile) {
   const dir = path.join(isWSL ? execFileSync('wslpath', ['-u', profile]).toString().trim() : profile, 'Default');
   const file = path.join(dir, 'Preferences');
@@ -225,8 +231,10 @@ function openWindow(url) {
     console.error(`mdview: no Chromium-based browser found; set MDVIEW_BROWSER. Open ${url} manually.`);
     return;
   }
-  const profile = profileDir();
-  try { disableMiniMenu(profile); } catch {}
+  const profile = profileDir(browser);
+  if (/edge/.test(browserName(browser))) {
+    try { disableMiniMenu(profile); } catch {}
+  }
   const args = [`--app=${url}`, `--user-data-dir=${profile}`, '--no-first-run', '--no-default-browser-check'];
   if (opts.size) args.push(`--window-size=${opts.size.replace('x', ',')}`);
   if (opts.pos) args.push(`--window-position=${opts.pos}`);

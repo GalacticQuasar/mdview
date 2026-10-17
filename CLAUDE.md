@@ -33,11 +33,12 @@ The user's `~/.bashrc` wraps this as `mdview() { node ~/projects/mdview/mdview.m
 ## Non-obvious decisions (don't undo without reason)
 
 - **WSL host binding:** in WSL NAT mode the server binds to the VM's `eth0` IP, not `127.0.0.1`. The Windows→WSL localhost relay takes 0.25–1.5s to pick up new ports, which made the window flash `ERR_CONNECTION_REFUSED`. This applies only when `wslinfo --networking-mode` reports `nat`. In mirrored mode that IP is the machine's LAN address, so mdview falls back to localhost there.
-- **Separate browser profile** (`--user-data-dir`): without it, the window attaches to the user's running Edge and ignores `--window-size`/`--window-position`. Locations:
-  - WSL: `%LOCALAPPDATA%\mdview\profile`, looked up once via `cmd.exe` and cached in `.localappdata`
-  - macOS: `~/Library/Caches/mdview`
-  - Linux: `$XDG_CACHE_HOME/mdview`
-- **No browser menus:** `page.js` blocks the right-click menu. Edge's "mini menu" (the toolbar over selected text) can't be blocked from the page, so `disableMiniMenu()` writes `edge_quick_search.show_mini_menu: false` into the profile's `Default/Preferences` before each launch. That key was found by toggling the setting in `edge://settings` and diffing the file. Other Edge UI can likely be turned off the same way.
+- **Browser choice:** on WSL, `findBrowser()` prefers Edge, with Chrome as the fallback. In a benchmark, Chrome loaded the page slightly sooner, but in real use its window sat blank for about 0.5s before drawing; Edge's blank time was about a fifth of that. Judge startup by when the page is drawn, not when it loads. On Linux and macOS, Chrome comes first. `MDVIEW_BROWSER` overrides all of this.
+- **Separate browser profile** (`--user-data-dir`): without it, the window attaches to the user's running browser and ignores `--window-size`/`--window-position`. There's one folder per browser (named from the executable, e.g. `chrome`, `msedge`), because two browsers sharing one user-data-dir can corrupt it. Locations:
+  - WSL: `%LOCALAPPDATA%\mdview\<browser>`, with `%LOCALAPPDATA%` looked up once via `cmd.exe` and cached in `.localappdata`
+  - macOS: `~/Library/Caches/mdview/<browser>`
+  - Linux: `$XDG_CACHE_HOME/mdview/<browser>`
+- **No browser menus:** `page.js` blocks the right-click menu. Edge's "mini menu" (the toolbar over selected text) can't be blocked from the page, so when the browser is Edge, `disableMiniMenu()` writes `edge_quick_search.show_mini_menu: false` into the profile's `Default/Preferences` before each launch. Chrome has no such menu. That key was found by toggling the setting in `edge://settings` and diffing the file. Other Edge UI can likely be turned off the same way.
 - **`<body class="markdown-body">`:** github-markdown-css scopes its theme variables to `.markdown-body`. Putting the class on `body` makes the background cover the whole window, which fixed mismatched side bands. Content is full width, and the scrollbar is hidden on purpose.
 - **Smooth scrolling** is a custom `requestAnimationFrame` ease toward a target, not `behavior: 'smooth'`, so a held `j` extends the target instead of stuttering:
   - Each step moves at least 1px, so Chromium's pixel snapping can't stall the animation just short of the target.
