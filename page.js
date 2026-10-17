@@ -9,27 +9,32 @@
   const half = () => window.innerHeight / 2;
   const full = () => window.innerHeight - LINE;
 
-  // Smooth scrolling: ease toward a target each frame. Repeated keys (e.g. holding j)
+  // Smooth scrolling: ease toward a target each frame. Quick repeated presses (e.g. d d)
   // push the target further instead of restarting the animation.
   let target = null;
   let last = 0; // where we last put the page, to notice wheel/scrollbar taking over
   let lastTime = 0;
+  let velocity = 0; // px/ms of the eased animation, so a hold can pick up where it left off
   const maxY = () => document.documentElement.scrollHeight - window.innerHeight;
   const step = (now) => {
     if (target === null) return;
-    if (Math.abs(window.scrollY - last) > 2) { target = null; return; }
+    if (Math.abs(window.scrollY - last) > 2) { target = null; velocity = 0; return; }
     const d = target - window.scrollY;
-    if (Math.abs(d) <= 1) { window.scrollTo(0, target); target = null; return; }
+    if (Math.abs(d) <= 1) { window.scrollTo(0, target); target = null; velocity = 0; return; }
     // Frame-rate independent ease-out (~25% of the remaining distance per 60Hz frame),
     // at least 1px so pixel snapping can't stall it just short of the target.
-    const k = 1 - Math.pow(0.75, Math.min(now - lastTime, 100) / 16.7);
+    const dt = Math.min(now - lastTime, 100);
+    const k = 1 - Math.pow(0.75, dt / 16.7);
     lastTime = now;
-    window.scrollTo(0, window.scrollY + Math.sign(d) * Math.max(1, Math.abs(d) * k));
+    const from = window.scrollY;
+    window.scrollTo(0, from + Math.sign(d) * Math.max(1, Math.abs(d) * k));
     last = window.scrollY;
+    if (dt > 0) velocity = (last - from) / dt;
     requestAnimationFrame(step);
   };
   const scrollTo = (y) => {
     hideCursor();
+    glide = null;
     const animating = target !== null;
     target = Math.round(Math.max(0, Math.min(maxY(), y)));
     if (!animating) {
@@ -39,6 +44,40 @@
     }
   };
   const scroll = (dy) => scrollTo((target ?? window.scrollY) + dy);
+
+  // Holding a line key: from the first auto-repeat on, scroll at a constant speed every frame.
+  // Easing toward a target that each repeat bumps 60px makes the speed pulse at the repeat rate.
+  const HOLD_SPEED = 1.8; // px/ms: LINE per repeat at Windows' default ~30/s repeat rate
+  const HOLD_EASE = 70; // ms time constant for speeding up and slowing down
+  let glide = null; // { key, dir, held, v, y, last, time }
+  const holdLine = (key, dir) => {
+    hideCursor();
+    if (glide) { Object.assign(glide, { key, dir, held: true }); return; }
+    const g = glide = {
+      key, dir, held: true, v: velocity,
+      y: window.scrollY, last: window.scrollY, time: performance.now(),
+    };
+    target = null; // take over from the eased tap
+    const frame = (now) => {
+      if (glide !== g) return;
+      if (Math.abs(window.scrollY - g.last) > 2) { glide = null; return; } // wheel/scrollbar took over
+      const dt = Math.min(now - g.time, 100);
+      g.time = now;
+      g.v += ((g.held ? g.dir * HOLD_SPEED : 0) - g.v) * (1 - Math.exp(-dt / HOLD_EASE));
+      g.y = Math.max(0, Math.min(maxY(), g.y + g.v * dt)); // keep the fraction; scrollY snaps to pixels
+      window.scrollTo(0, g.y);
+      g.last = window.scrollY;
+      if (!g.held && (Math.abs(g.v) < 0.05 || g.y === 0 || g.y === maxY())) { glide = null; return; }
+      requestAnimationFrame(frame);
+    };
+    requestAnimationFrame(frame);
+  };
+  const line = (e, dir) => (e.repeat ? holdLine(e.key.toLowerCase(), dir) : scroll(dir * LINE));
+  const release = () => { if (glide) glide.held = false; };
+  document.addEventListener('keyup', (e) => {
+    if (glide && (e.key.toLowerCase() === glide.key || e.key === 'Control')) release();
+  });
+  window.addEventListener('blur', release);
 
   // Hide the mouse cursor while scrolling with the keyboard; moving the mouse brings it back.
   // Compare positions because Chromium can fire mousemove when content scrolls under a still cursor.
@@ -93,15 +132,15 @@
     u: () => scroll(-half()),
     f: () => scroll(full()),
     b: () => scroll(-full()),
-    e: () => scroll(LINE),
-    y: () => scroll(-LINE),
+    e: (e) => line(e, 1),
+    y: (e) => line(e, -1),
     o: () => history.back(),
     i: () => history.forward(),
   };
 
   const keys = {
-    j: () => scroll(LINE),
-    k: () => scroll(-LINE),
+    j: (e) => line(e, 1),
+    k: (e) => line(e, -1),
     d: () => scroll(half()),
     u: () => scroll(-half()),
     ' ': () => scroll(full()),
@@ -119,7 +158,7 @@
     if (e.target === input || e.altKey || e.metaKey) return;
     if (e.ctrlKey) {
       const fn = ctrlKeys[e.key.toLowerCase()];
-      if (fn) { e.preventDefault(); fn(); }
+      if (fn) { e.preventDefault(); fn(e); }
       return;
     }
     if (e.key === 'Escape') { pending = ''; window.getSelection().removeAllRanges(); return; }
@@ -134,7 +173,7 @@
     }
     pending = '';
     const fn = keys[e.key];
-    if (fn) { e.preventDefault(); fn(); }
+    if (fn) { e.preventDefault(); fn(e); }
   });
 
   input.addEventListener('keydown', (e) => {
