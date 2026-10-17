@@ -11,12 +11,18 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ```sh
 npm install
 node mdview.mjs README.md                                # open a window
-node mdview.mjs README.md --size 1400x1460 --pos 580,0   # window geometry
+node mdview.mjs README.md --size 933x1013 --pos 387,0    # window geometry
 node mdview.mjs README.md --no-open                      # just print the URL (for testing)
 node --check mdview.mjs && node --check page.js          # syntax check
 ```
 
-The user's `~/.bashrc` wraps this as `mdview() { node ~/projects/mdview/mdview.mjs --size 1400x1460 --pos 580,0 "$@"; }`.
+The user's `~/.bashrc` wraps this as `mdview() { node ~/projects/mdview/mdview.mjs --size 933x1013 --pos 387,0 "$@"; }`. `--size`/`--pos` are in scaled pixels. The user's display is 2560×1600 at 150% Windows scaling, so it's 1707×1067 in scaled pixels, and screen-pixel numbers have to be divided by 1.5.
+
+## Working with the user
+
+- The user commits and pushes themselves. Don't commit unless asked; suggest a commit message when asked.
+- Update `README.md` and `CLAUDE.md` along with code changes; the user asks for docs to be current before each commit.
+- Keep decision history and benchmark results in this file, not in code comments.
 
 ## Architecture
 
@@ -56,4 +62,10 @@ The user's `~/.bashrc` wraps this as `mdview() { node ~/projects/mdview/mdview.m
 
 ## Testing changes
 
-There are no automated tests. To verify keybindings and rendering, start a server with `--no-open` and drive it with `playwright-cli open --browser=chromium <url>`; plain `open` fails because Chrome isn't installed in WSL. Then `press` keys and `eval 'scrollY'`. Use `set-color-scheme dark` and `screenshot` for visual checks. `.playwright-cli/` output is gitignored. Stop stray servers with `pkill -f '^node mdview'`.
+There are no automated tests. To verify keybindings and rendering, start a server with `--no-open` and drive it with `playwright-cli open --browser=chromium <url>`; plain `open` fails because Chrome isn't installed in WSL. Then `press` keys and `eval 'scrollY'`. Use `set-color-scheme dark` and `screenshot` for visual checks. `.playwright-cli/` output is gitignored. Stop stray servers with `pkill -f '^node mdview'`; a looser pattern can match and kill the shell running the command.
+
+Pitfalls:
+- `playwright-cli click` scrolls the element into view first, which ruins scroll-position tests. Trigger clicks in the page instead, with `eval 'document.querySelector(...).click(), 1'`.
+- Under Playwright `history.length` starts at 2 (`about:blank` first). Check that it never increases; in the real app window it starts at 1.
+- Stub `/__open` with `playwright-cli route "**/__open" --status=204`, or clicking a web link launches the user's real browser.
+- Behavior that depends on the real window, like `window.close()`, the taskbar icon or paint timing, can't be verified headlessly. Ask the user to check it.
