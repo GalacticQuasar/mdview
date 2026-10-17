@@ -206,13 +206,28 @@ function profileDir() {
   return `${local}\\mdview\\profile`;
 }
 
+// Turn off Edge's "mini menu" (the popup toolbar over selected text). Pages can't suppress it,
+// so set the profile pref directly. Unknown to other browsers, which ignore it.
+function disableMiniMenu(profile) {
+  const dir = path.join(isWSL ? execFileSync('wslpath', ['-u', profile]).toString().trim() : profile, 'Default');
+  const file = path.join(dir, 'Preferences');
+  let prefs = {};
+  try { prefs = JSON.parse(fs.readFileSync(file, 'utf8')); } catch {}
+  if (prefs.edge_quick_search?.show_mini_menu === false) return;
+  prefs.edge_quick_search = { ...prefs.edge_quick_search, show_mini_menu: false };
+  fs.mkdirSync(dir, { recursive: true });
+  fs.writeFileSync(file, JSON.stringify(prefs));
+}
+
 function openWindow(url) {
   const browser = findBrowser();
   if (!browser) {
     console.error(`mdview: no Chromium-based browser found; set MDVIEW_BROWSER. Open ${url} manually.`);
     return;
   }
-  const args = [`--app=${url}`, `--user-data-dir=${profileDir()}`, '--no-first-run', '--no-default-browser-check'];
+  const profile = profileDir();
+  try { disableMiniMenu(profile); } catch {}
+  const args = [`--app=${url}`, `--user-data-dir=${profile}`, '--no-first-run', '--no-default-browser-check'];
   if (opts.size) args.push(`--window-size=${opts.size.replace('x', ',')}`);
   if (opts.pos) args.push(`--window-position=${opts.pos}`);
   spawn(browser, args, { detached: true, stdio: 'ignore', cwd: isWSL ? '/mnt/c' : undefined }).unref();

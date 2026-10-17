@@ -37,6 +37,7 @@ The user's `~/.bashrc` wraps this as `mdview() { node ~/projects/mdview/mdview.m
   - WSL: `%LOCALAPPDATA%\mdview\profile`, looked up once via `cmd.exe` and cached in `.localappdata`
   - macOS: `~/Library/Caches/mdview`
   - Linux: `$XDG_CACHE_HOME/mdview`
+- **No browser menus:** `page.js` blocks the right-click menu. Edge's "mini menu" (the toolbar over selected text) can't be blocked from the page, so `disableMiniMenu()` writes `edge_quick_search.show_mini_menu: false` into the profile's `Default/Preferences` before each launch. That key was found by toggling the setting in `edge://settings` and diffing the file. Other Edge UI can likely be turned off the same way.
 - **`<body class="markdown-body">`:** github-markdown-css scopes its theme variables to `.markdown-body`. Putting the class on `body` makes the background cover the whole window, which fixed mismatched side bands. Content is full width, and the scrollbar is hidden on purpose.
 - **Smooth scrolling** is a custom `requestAnimationFrame` ease toward a target, not `behavior: 'smooth'`, so a held `j` extends the target instead of stuttering:
   - Each step moves at least 1px, so Chromium's pixel snapping can't stall the animation just short of the target.

@@ -138,6 +138,9 @@
     e.stopPropagation();
   });
 
+  // No browser context menu: it's a viewer, not a browser.
+  document.addEventListener('contextmenu', (e) => e.preventDefault());
+
   // ---------- live reload (keeps scroll position) ----------
 
   async function reload() {
