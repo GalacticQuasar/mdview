@@ -15,16 +15,20 @@
   let last = 0; // where we last put the page, to notice wheel/scrollbar taking over
   let lastTime = 0;
   let velocity = 0; // px/ms of the eased animation, so a hold can pick up where it left off
+  // Fraction of the remaining distance covered per 60Hz frame.
+  const EASE = 0.25;
+  const EASE_HALF_PAGE = 0.16; // gentler for Ctrl-D/Ctrl-U, which travel much further
+  let ease = EASE;
   const maxY = () => document.documentElement.scrollHeight - window.innerHeight;
   const step = (now) => {
     if (target === null) return;
     if (Math.abs(window.scrollY - last) > 2) { target = null; velocity = 0; return; }
     const d = target - window.scrollY;
     if (Math.abs(d) <= 1) { window.scrollTo(0, target); target = null; velocity = 0; return; }
-    // Frame-rate independent ease-out (~25% of the remaining distance per 60Hz frame),
-    // at least 1px so pixel snapping can't stall it just short of the target.
+    // Frame-rate independent ease-out, at least 1px so pixel snapping can't stall it
+    // just short of the target.
     const dt = Math.min(now - lastTime, 100);
-    const k = 1 - Math.pow(0.75, dt / 16.7);
+    const k = 1 - Math.pow(1 - ease, dt / 16.7);
     lastTime = now;
     const from = window.scrollY;
     window.scrollTo(0, from + Math.sign(d) * Math.max(1, Math.abs(d) * k));
@@ -32,9 +36,10 @@
     if (dt > 0) velocity = (last - from) / dt;
     requestAnimationFrame(step);
   };
-  const scrollTo = (y) => {
+  const scrollTo = (y, rate = EASE) => {
     hideCursor();
     glide = null;
+    ease = rate;
     const animating = target !== null;
     target = Math.round(Math.max(0, Math.min(maxY(), y)));
     if (!animating) {
@@ -43,7 +48,8 @@
       requestAnimationFrame(step);
     }
   };
-  const scroll = (dy) => scrollTo((target ?? window.scrollY) + dy);
+  const scroll = (dy, rate) => scrollTo((target ?? window.scrollY) + dy, rate);
+  const halfPage = (dir) => scroll(dir * half(), EASE_HALF_PAGE);
 
   // Holding a line key: from the first auto-repeat on, scroll at a constant speed every frame.
   // Easing toward a target that each repeat bumps 60px makes the speed pulse at the repeat rate.
@@ -128,8 +134,8 @@
   };
 
   const ctrlKeys = {
-    d: () => scroll(half()),
-    u: () => scroll(-half()),
+    d: () => halfPage(1),
+    u: () => halfPage(-1),
     f: () => scroll(full()),
     b: () => scroll(-full()),
     e: (e) => line(e, 1),
@@ -141,8 +147,8 @@
   const keys = {
     j: (e) => line(e, 1),
     k: (e) => line(e, -1),
-    d: () => scroll(half()),
-    u: () => scroll(-half()),
+    d: () => halfPage(1),
+    u: () => halfPage(-1),
     ' ': () => scroll(full()),
     G: () => scrollTo(maxY()),
     H: () => history.back(),
