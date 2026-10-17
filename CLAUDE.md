@@ -24,10 +24,11 @@ The user's `~/.bashrc` wraps this as `mdview() { node ~/projects/mdview/mdview.m
   - `/<path>.md` returns the full page; `?fragment` returns only the rendered HTML, which live reload swaps in.
   - `/__events?path=` is an SSE stream that sends `reload` when the file changes.
   - `/__quit` exits the server.
+  - `POST /__open` opens a link in the default browser (`rundll32` on WSL, `open` on macOS, `xdg-open` on Linux). It only accepts `http`, `https` and `mailto` links, and only from mdview's own pages (checked via the `Origin` header).
   - Anything else is served as a static file.
 - **`page.js` / `page.css`**: inlined into every page. They're read once at startup and concatenated with the vendored CSS from `node_modules`, so restart mdview after editing them.
 - **`icon.svg`**: also read once at startup, and embedded as a `data:` favicon. Edge uses it for the app window's title bar and taskbar icon. It switches stroke color with `prefers-color-scheme` so it stays visible in light mode. It's Lucide's "view" icon, chosen by the user; keep the ISC license comment inside it.
-- **Serve root** is the file's git toplevel, or its directory if it isn't in a repo. Requests outside the root get a 403. Relative links to other `.md` files render inside the viewer.
+- **Serve root** is the file's git toplevel, or its directory if it isn't in a repo. Requests outside the root get a 403.
 - **Lifecycle:** the process exits when the window closes. It waits 1.5s after the last SSE client disconnects, which lets navigation between pages reconnect in time. If no client connects within 30s it exits too, so `--no-open` test servers die on their own.
 - **File watching** watches the *directory*, not the file, because Neovim saves by rename.
 
@@ -44,7 +45,13 @@ The user's `~/.bashrc` wraps this as `mdview() { node ~/projects/mdview/mdview.m
 - **Smooth scrolling** has two modes, both custom `requestAnimationFrame` loops rather than `behavior: 'smooth'`. Both abort if something else moves the page, like the wheel or the scrollbar.
   - **Taps and jumps** (`scrollTo()`) ease toward a target, covering a fixed fraction of the remaining distance per frame. That fraction is `EASE` (0.25) by default and `EASE_HALF_PAGE` (0.16) for `Ctrl-D`/`Ctrl-U`, which travel far enough that the default lurched. Both values were tuned by feel with the user. Each step moves at least 1px, so Chromium's pixel snapping can't stall the animation just short of the target.
   - **Held line keys** (`j`/`k`, `Ctrl-E`/`Ctrl-Y`, via `holdLine()`) switch to a constant speed from the first auto-repeat until key-up. They ignore the repeats themselves and ease speed in and out. Easing toward a target bumped 60px per repeat made the speed pulse at the key-repeat rate (16% frame-to-frame variation, now about 1%). To check smoothness, log `scrollY` every frame while simulating repeats.
-- **Cursor hiding:** `scrollTo()` in `page.js` adds `hide-cursor` to `<html>`, so every keyboard scroll hides the cursor. Wheel scrolling deliberately doesn't. A `mousemove` only shows the cursor again if the screen position actually changed, because Chromium can fire `mousemove` when content scrolls under a still cursor.
+- **The window's history must stay at one entry.** Browsers only let a page close its own window (`q`) when there's nothing to go back to. Once a link added a history entry, `q` stopped the server but left a dead window. So the click handler in `page.js` never adds history entries:
+  - `#anchor` links scroll with `scrollTo()` and update the URL with `history.replaceState`.
+  - Links to other `.md` files load with `location.replace`. mdview keeps its own back/forward stacks in `sessionStorage` for `H`/`L` and `Ctrl-O`/`Ctrl-I`, including scroll positions.
+  - Everything else goes to `/__open`.
+
+  Never use `history.pushState`, plain navigation or `history.back()`. If closing still fails, or the server dies, the page shows "mdview has stopped".
+- **Cursor hiding:** the keydown handler in `page.js` adds `hide-cursor` to `<html>` for every bound key, so keyboard scrolling hides the cursor. This lives in the key handler, not in `scrollTo()`, so clicking an anchor link doesn't hide the cursor. Wheel scrolling deliberately doesn't. A `mousemove` only shows the cursor again if the screen position actually changed, because Chromium can fire `mousemove` when content scrolls under a still cursor.
 - **Search** uses Chromium's non-standard `window.find`, then scrolls the match into view manually because `find` doesn't.
 
 ## Testing changes

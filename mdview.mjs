@@ -128,6 +128,19 @@ const server = http.createServer((req, res) => {
     res.end();
     return setTimeout(() => process.exit(0), 50);
   }
+  if (url.pathname === '/__open' && req.method === 'POST') {
+    if (req.headers.origin !== `http://${req.headers.host}`) { // only our own pages
+      res.writeHead(403);
+      return res.end();
+    }
+    let body = '';
+    req.on('data', (c) => { body += c; });
+    req.on('end', () => {
+      res.writeHead(openExternal(body) ? 204 : 400);
+      res.end();
+    });
+    return;
+  }
 
   const target = path.join(root, decodeURIComponent(url.pathname));
   if (target !== root && !target.startsWith(root + path.sep)) {
@@ -211,6 +224,19 @@ function profileDir(browser) {
     fs.writeFileSync(cache, local);
   }
   return `${local}\\mdview\\${name}`;
+}
+
+// Open a link in the user's default browser (links never navigate the viewer window away).
+function openExternal(link) {
+  let url;
+  try { url = new URL(link); } catch { return false; }
+  if (!['http:', 'https:', 'mailto:'].includes(url.protocol)) return false;
+  const [cmd, args] = isWSL ? ['rundll32.exe', ['url.dll,FileProtocolHandler', url.href]]
+    : process.platform === 'darwin' ? ['open', [url.href]]
+    : ['xdg-open', [url.href]];
+  spawn(cmd, args, { detached: true, stdio: 'ignore', cwd: isWSL ? '/mnt/c' : undefined })
+    .on('error', () => {}).unref();
+  return true;
 }
 
 // Turn off Edge's "mini menu" (the popup toolbar over selected text). Pages can't suppress it,

@@ -8,7 +8,7 @@ Features:
 - HTML Rendering
 - GitHub-flavored Markdown: tables, task lists, callouts (`> [!NOTE]`), heading anchors
 - Live reload on save, keeping your scroll position
-- Follows links to other `.md` files and shows relative images
+- Follows links to other `.md` files and shows relative images; web links open in your default browser
 - Mouse cursor hides while you scroll with the keyboard and comes back when you move the mouse
 
 ## How it works

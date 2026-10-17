@@ -37,7 +37,6 @@
     requestAnimationFrame(step);
   };
   const scrollTo = (y, rate = EASE) => {
-    hideCursor();
     glide = null;
     ease = rate;
     const animating = target !== null;
@@ -140,8 +139,8 @@
     b: () => scroll(-full()),
     e: (e) => line(e, 1),
     y: (e) => line(e, -1),
-    o: () => history.back(),
-    i: () => history.forward(),
+    o: () => goBack(),
+    i: () => goForward(),
   };
 
   const keys = {
@@ -151,8 +150,8 @@
     u: () => halfPage(-1),
     ' ': () => scroll(full()),
     G: () => scrollTo(maxY()),
-    H: () => history.back(),
-    L: () => history.forward(),
+    H: () => goBack(),
+    L: () => goForward(),
     '/': () => { bar.hidden = false; input.value = query; input.select(); input.focus(); },
     n: () => find(false),
     N: () => find(true),
@@ -164,14 +163,14 @@
     if (e.target === input || e.altKey || e.metaKey) return;
     if (e.ctrlKey) {
       const fn = ctrlKeys[e.key.toLowerCase()];
-      if (fn) { e.preventDefault(); fn(e); }
+      if (fn) { e.preventDefault(); hideCursor(); fn(e); }
       return;
     }
     if (e.key === 'Escape') { pending = ''; window.getSelection().removeAllRanges(); return; }
 
     pending += e.key;
     clearTimeout(pendingTimer);
-    if (sequences[pending]) { e.preventDefault(); sequences[pending](); pending = ''; return; }
+    if (sequences[pending]) { e.preventDefault(); hideCursor(); sequences[pending](); pending = ''; return; }
     if (Object.keys(sequences).some((s) => s.startsWith(pending))) {
       e.preventDefault();
       pendingTimer = setTimeout(() => { pending = ''; }, 800);
@@ -179,7 +178,7 @@
     }
     pending = '';
     const fn = keys[e.key];
-    if (fn) { e.preventDefault(); fn(e); }
+    if (fn) { e.preventDefault(); hideCursor(); fn(e); }
   });
 
   input.addEventListener('keydown', (e) => {
@@ -199,6 +198,70 @@
   // No browser context menu: it's a viewer, not a browser.
   document.addEventListener('contextmenu', (e) => e.preventDefault());
 
+  // ---------- links and back/forward ----------
+  // The window must keep a single history entry: browsers only let a page close its own
+  // window (q) when there's nothing to go back to. So links never add entries: #anchors
+  // scroll in place, other .md files replace the page (with our own back/forward stacks in
+  // sessionStorage), and everything else opens in the default browser.
+
+  const load = (key, fallback) => {
+    try { return JSON.parse(sessionStorage.getItem(key)) ?? fallback; } catch { return fallback; }
+  };
+  const save = (key, value) => {
+    try { sessionStorage.setItem(key, JSON.stringify(value)); } catch {}
+  };
+  let leaving = false;
+  const leave = (url, y) => {
+    if (y !== undefined) {
+      save('mdview.restoreY', y);
+      url = url.split('#')[0]; // else the browser jumps to the anchor after we restore
+    }
+    leaving = true;
+    location.replace(url);
+  };
+  const here = () => ({ url: location.href, y: window.scrollY });
+
+  const openPage = (url) => {
+    save('mdview.back', [...load('mdview.back', []), here()]);
+    save('mdview.forward', []);
+    leave(url);
+  };
+  const travel = (from, to, label) => {
+    const stack = load(from, []);
+    const entry = stack.pop();
+    if (!entry) return flash(`no ${label} page`);
+    save(from, stack);
+    save(to, [...load(to, []), here()]);
+    leave(entry.url, entry.y);
+  };
+  function goBack() { travel('mdview.back', 'mdview.forward', 'previous'); }
+  function goForward() { travel('mdview.forward', 'mdview.back', 'next'); }
+
+  const restoreY = load('mdview.restoreY', null);
+  if (restoreY !== null) {
+    try { sessionStorage.removeItem('mdview.restoreY'); } catch {}
+    window.scrollTo({ top: restoreY, behavior: 'instant' });
+  }
+
+  document.addEventListener('click', (e) => {
+    const a = e.target.closest('a[href]');
+    if (!a) return;
+    e.preventDefault();
+    const url = new URL(a.href, location.href);
+    const local = url.origin === location.origin;
+    if (local && url.pathname === location.pathname) {
+      const el = url.hash && document.getElementById(decodeURIComponent(url.hash.slice(1)));
+      scrollTo(el ? el.getBoundingClientRect().top + window.scrollY - 16 : 0);
+      history.replaceState(null, '', url.hash || location.pathname);
+    } else if (local && /\.(md|markdown|mdown|mkd)$/i.test(url.pathname)) {
+      openPage(url.href);
+    } else {
+      fetch('/__open', { method: 'POST', body: url.href }).catch(() => flash('could not open link'));
+    }
+  });
+  // Middle-click would open a new browser window.
+  document.addEventListener('auxclick', (e) => { if (e.target.closest('a[href]')) e.preventDefault(); });
+
   // ---------- live reload (keeps scroll position) ----------
 
   async function reload() {
@@ -212,9 +275,22 @@
   const events = new EventSource('/__events?path=' + encodeURIComponent(decodeURIComponent(location.pathname)));
   events.onmessage = (e) => { if (e.data === 'reload') reload(); };
 
+  // Server gone (q, Ctrl-C in the terminal): say so instead of leaving a dead window.
+  const stopped = () => {
+    clearTimeout(statusTimer);
+    status.textContent = 'mdview has stopped. You can close this window.';
+    status.hidden = false;
+  };
+  events.onerror = () => {
+    if (leaving) return;
+    events.close();
+    stopped();
+  };
+
   async function quit() {
     events.close();
     try { await fetch('/__quit'); } catch {}
     window.close();
+    setTimeout(stopped, 300); // only runs if the window refused to close
   }
 })();
