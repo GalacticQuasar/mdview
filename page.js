@@ -29,6 +29,7 @@
     requestAnimationFrame(step);
   };
   const scrollTo = (y) => {
+    hideCursor();
     const animating = target !== null;
     target = Math.round(Math.max(0, Math.min(maxY(), y)));
     if (!animating) {
@@ -38,6 +39,18 @@
     }
   };
   const scroll = (dy) => scrollTo((target ?? window.scrollY) + dy);
+
+  // Hide the mouse cursor while scrolling with the keyboard; moving the mouse brings it back.
+  // Compare positions because Chromium can fire mousemove when content scrolls under a still cursor.
+  let mouseX = -1;
+  let mouseY = -1;
+  function hideCursor() { document.documentElement.classList.add('hide-cursor'); }
+  document.addEventListener('mousemove', (e) => {
+    if (e.screenX === mouseX && e.screenY === mouseY) return;
+    mouseX = e.screenX;
+    mouseY = e.screenY;
+    document.documentElement.classList.remove('hide-cursor');
+  });
 
   let statusTimer;
   const flash = (msg) => {

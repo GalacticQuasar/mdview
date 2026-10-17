@@ -9,6 +9,7 @@ Features:
 - GitHub-flavored Markdown: tables, task lists, callouts (`> [!NOTE]`), heading anchors
 - Live reload on save, keeping your scroll position
 - Follows links to other `.md` files and shows relative images
+- Mouse cursor hides while you scroll with the keyboard and comes back when you move the mouse
 
 ## How it works
 

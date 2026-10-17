@@ -43,6 +43,7 @@ The user's `~/.bashrc` wraps this as `mdview() { node ~/projects/mdview/mdview.m
 - **Smooth scrolling** is a custom `requestAnimationFrame` ease toward a target, not `behavior: 'smooth'`, so a held `j` extends the target instead of stuttering:
   - Each step moves at least 1px, so Chromium's pixel snapping can't stall the animation just short of the target.
   - The animation aborts if something else moves the page, like the wheel or the scrollbar.
+- **Cursor hiding:** `scrollTo()` in `page.js` adds `hide-cursor` to `<html>`, so every keyboard scroll hides the cursor. Wheel scrolling deliberately doesn't. A `mousemove` only shows the cursor again if the screen position actually changed, because Chromium can fire `mousemove` when content scrolls under a still cursor.
 - **Search** uses Chromium's non-standard `window.find`, then scrolls the match into view manually because `find` doesn't.
 
 ## Testing changes
