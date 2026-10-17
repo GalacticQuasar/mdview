@@ -13,8 +13,14 @@ Features:
 ## How it works
 
 `mdview` renders the file to HTML in a small local Node server and opens it in a chromeless
-Edge/Chrome `--app` window. On WSL the window is a native Windows window while the server runs in
-WSL. The process exits when the window is closed.
+Chromium-based browser window (`--app` mode). The process exits when the window is closed.
+
+Works on Linux, macOS, and WSL. It needs Node and one of these browsers:
+
+- **WSL:** Edge or Chrome on the Windows side, so the window is a native Windows window while the
+  server runs in WSL
+- **macOS:** Chrome, Edge, Chromium, or Brave in `/Applications` or `~/Applications`
+- **Linux:** Chromium, Chrome, or Edge in `/usr/bin`
 
 ## Install
 
