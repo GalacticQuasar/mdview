@@ -72,7 +72,19 @@ md.core.ruler.push('heading_ids', (state) => {
   });
 });
 
-const render = (p) => md.render(fs.readFileSync(p, 'utf8'));
+// YAML frontmatter (e.g. SKILL.md) is shown as a highlighted block instead of
+// being parsed as Markdown, where it turned into an <hr> plus a setext heading.
+const FRONTMATTER = /^﻿?---\r?\n([\s\S]*?\r?\n)?---[ \t]*(?:\r?\n|$)/;
+
+const render = (p) => {
+  const src = fs.readFileSync(p, 'utf8');
+  const m = src.match(FRONTMATTER);
+  if (!m) return md.render(src);
+  const body = md.render(src.slice(m[0].length));
+  if (!m[1]?.trim()) return body;
+  const yaml = hljs.highlight(m[1], { language: 'yaml', ignoreIllegals: true }).value;
+  return `<pre class="frontmatter"><code class="hljs language-yaml">${yaml}</code></pre>\n${body}`;
+};
 
 // ---------- page ----------
 
