@@ -1,6 +1,6 @@
 # mdview
 
-A lightweight GUI application to view rendered markdown files with vim motions, started from your terminal.
+A terminal-launched Markdown viewer with vim keybindings and live reload. Opens in a chromeless Chrome/Edge window, with no Electron.
 
 Features:
 - Smooth Scrolling
