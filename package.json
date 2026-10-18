@@ -1,7 +1,7 @@
 {
   "name": "mdview",
   "version": "1.0.0",
-  "description": "View rendered Markdown with vim motions",
+  "description": "Markdown viewer with vim keybindings and live reload",
   "scripts": {},
   "keywords": [],
   "author": "",
