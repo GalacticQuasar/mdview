@@ -55,7 +55,7 @@ After editing, open a new terminal or reload the file (e.g. `source ~/.bashrc`).
 mdview README.md [--size 1400x1460] [--pos 580,0] [--no-open]
 ```
 
-`--no-open` just prints the URL. Set `MDVIEW_BROWSER` to use a specific Chromium-based browser.
+The file must end in `.md`, `.markdown`, `.mdown` or `.mkd`. `--no-open` just prints the URL. Set `MDVIEW_BROWSER` to use a specific Chromium-based browser.
 
 ## Keys
 

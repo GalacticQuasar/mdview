@@ -17,6 +17,8 @@ const MODULES = path.join(HERE, 'node_modules');
 
 // ---------- args ----------
 
+const isMarkdown = (p) => /\.(md|markdown|mdown|mkd)$/i.test(p);
+
 const USAGE = `usage: mdview <file.md> [--size WxH] [--pos X,Y] [--no-open]`;
 const opts = { size: null, pos: null, open: true, file: null };
 const argv = process.argv.slice(2);
@@ -33,6 +35,7 @@ if (!opts.file) { console.error(USAGE); process.exit(1); }
 
 const file = path.resolve(opts.file);
 if (!fs.existsSync(file)) { console.error(`mdview: no such file: ${opts.file}`); process.exit(1); }
+if (!isMarkdown(file)) { console.error(`mdview: not a Markdown file: ${opts.file}`); process.exit(1); }
 
 // Serve from the git root (so ../images work inside a repo), else the file's directory.
 let root = path.dirname(file);
@@ -107,7 +110,6 @@ const MIME = {
   '.html': 'text/html; charset=utf-8', '.css': 'text/css', '.js': 'text/javascript',
   '.json': 'application/json', '.txt': 'text/plain; charset=utf-8',
 };
-const isMarkdown = (p) => /\.(md|markdown|mdown|mkd)$/i.test(p);
 const urlFor = (p) => '/' + path.relative(root, p).split(path.sep).map(encodeURIComponent).join('/');
 
 // Exit once the window is closed: no live event streams for a short grace period.
