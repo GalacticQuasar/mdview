@@ -7,6 +7,7 @@ Features:
 - Code Syntax Highlighting
 - HTML Rendering
 - GitHub-flavored Markdown: tables, task lists, callouts (`> [!NOTE]`), heading anchors
+- Math (KaTeX) with GitHub's syntax: `$inline$`, `` $`inline`$ ``, `$$` blocks and ` ```math ` blocks
 - YAML frontmatter (e.g. in `SKILL.md` files) shown as a highlighted block at the top
 - Live reload on save, keeping your scroll position
 - Follows links to other `.md` files and shows relative images; web links open in your default browser

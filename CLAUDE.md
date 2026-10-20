@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
-`mdview <file.md>` renders Markdown and shows it in a chromeless Chromium `--app` window (Edge/Chrome) with vim-style navigation and live reload. Plain Node ESM, no build step, no tests, no linter. Dependencies: `markdown-it`, `markdown-it-github-alerts`, `highlight.js`, `github-markdown-css`.
+`mdview <file.md>` renders Markdown and shows it in a chromeless Chromium `--app` window (Edge/Chrome) with vim-style navigation and live reload. Plain Node ESM, no build step, no tests, no linter. Dependencies: `markdown-it`, `markdown-it-github-alerts`, `highlight.js`, `github-markdown-css`, `katex`.
 
 ## Commands
 
@@ -30,12 +30,19 @@ The user's `~/.bashrc` wraps this as `mdview() { node ~/projects/mdview/mdview.m
   - `/<path>.md` returns the full page; `?fragment` returns only the rendered HTML, which live reload swaps in.
   - `/__events?path=` is an SSE stream that sends `reload` when the file changes.
   - `/__quit` exits the server.
+  - `/__katex/fonts/<name>` serves KaTeX's font files.
   - `POST /__open` opens a link in the default browser (`rundll32` on WSL, `open` on macOS, `xdg-open` on Linux). It only accepts `http`, `https` and `mailto` links, and only from mdview's own pages (checked via the `Origin` header).
   - Anything else is served as a static file.
 - **`page.js` / `page.css`**: inlined into every page. They're read once at startup and concatenated with the vendored CSS from `node_modules`, so restart mdview after editing them.
 - **`icon.svg`**: also read once at startup, and embedded as a `data:` favicon. Edge uses it for the app window's title bar and taskbar icon. It switches stroke color with `prefers-color-scheme` so it stays visible in light mode. It's Lucide's "view" icon, chosen by the user; keep the ISC license comment inside it.
 - **Markdown only:** the CLI refuses files whose extension isn't `.md`, `.markdown`, `.mdown` or `.mkd` (`isMarkdown()`, the same check the server uses to decide what to render).
 - **YAML frontmatter:** `render()` cuts a leading `---`…`---` block off before markdown-it sees it, and shows it as a highlight.js YAML `<pre class="frontmatter">` above the body. Otherwise markdown-it renders it as an `<hr>` and a setext `<h2>`. The user chose a code block over GitHub's table rendering, because a table would need a YAML parser and gets cramped with long `description`s. Empty frontmatter is dropped. The YAML isn't validated, so a file that opens with a `---` thematic break and has another `---` line later is also treated as frontmatter.
+- **Math:** GitHub's syntax is parsed by small custom markdown-it rules in `mdview.mjs` and rendered server-side with `katex.renderToString`, so live-reload fragments need no client JS:
+  - `$…$` and `` $`…`$ `` are inline. `$$…$$` inside a paragraph renders as display math.
+  - A line starting with `$$` begins a display block, which ends at a line ending with `$$`.
+  - ` ```math ` fences are display math (the `fence` renderer is wrapped).
+
+  A lone `$` opens math only if a non-space follows, and must close at the *next* unescaped `$`, which must come after a non-space and not be followed by a digit. Otherwise it's plain text, so prices like "$5 and $10" stay text. `markdown-it-texmath` was tried and dropped: it outputs custom `<eq>`/`<section>` tags, and combining its `dollars` and `gitlab` modes registers duplicate rule names. KaTeX errors render inline in red (`throwOnError: false`). `katex.min.css` is inlined with its `url(fonts/…)` rewritten to `/__katex/fonts/`, a route that serves `node_modules/katex/dist/fonts` (basename only).
 - **Serve root** is the file's git toplevel, or its directory if it isn't in a repo. Requests outside the root get a 403.
 - **Lifecycle:** the process exits when the window closes. It waits 1.5s after the last SSE client disconnects, which lets navigation between pages reconnect in time. If no client connects within 30s it exits too, so `--no-open` test servers die on their own.
 - **File watching** watches the *directory*, not the file, because Neovim saves by rename.

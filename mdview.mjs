@@ -11,6 +11,7 @@ import { fileURLToPath } from 'node:url';
 import MarkdownIt from 'markdown-it';
 import githubAlerts from 'markdown-it-github-alerts';
 import hljs from 'highlight.js';
+import katex from 'katex';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const MODULES = path.join(HERE, 'node_modules');
@@ -72,6 +73,76 @@ md.core.ruler.push('heading_ids', (state) => {
   });
 });
 
+// GitHub-style math, rendered with KaTeX: $inline$, $`inline`$, $$display$$ and ```math blocks.
+const tex = (src, displayMode) => katex.renderToString(src, { displayMode, throwOnError: false });
+
+const isSpace = (c) => c === ' ' || c === '\t' || c === '\n';
+
+md.inline.ruler.before('escape', 'math_inline', (state, silent) => {
+  const src = state.src, start = state.pos;
+  if (src[start] !== '$') return false;
+  let open = '$', close = '$';
+  if (src[start + 1] === '`') { open = '$`'; close = '`$'; }
+  else if (src[start + 1] === '$') { open = close = '$$'; }
+  const from = start + open.length;
+  if (open === '$' && (from >= state.posMax || isSpace(src[from]))) return false;
+  let end = from;
+  for (;;) {
+    end = src.indexOf(close, end);
+    if (end < 0 || end + close.length > state.posMax) return false;
+    if (open !== '$') break;
+    if (src[end - 1] === '\\') { end++; continue; } // \$ inside math
+    // A lone $ must close at the next $, after a non-space and before a non-digit,
+    // so "$5 and $10" stays text.
+    if (isSpace(src[end - 1]) || /\d/.test(src[end + 1] ?? '')) return false;
+    break;
+  }
+  if (end === from) return false;
+  if (!silent) {
+    const tok = state.push('math_inline', 'math', 0);
+    tok.content = src.slice(from, end);
+    tok.markup = open;
+  }
+  state.pos = end + close.length;
+  return true;
+});
+
+// $$ on its own line(s): "$$ x $$", or "$$" ... "$$" across lines.
+md.block.ruler.before('fence', 'math_block', (state, startLine, endLine, silent) => {
+  if (state.sCount[startLine] - state.blkIndent >= 4) return false;
+  const line = (n) => state.src.slice(state.bMarks[n] + state.tShift[n], state.eMarks[n]).trimEnd();
+  const first = line(startLine);
+  if (!first.startsWith('$$')) return false;
+  let content, last = startLine;
+  const rest = first.slice(2);
+  if (rest.includes('$$')) {
+    if (!rest.endsWith('$$') || rest.length < 3) return false; // "$$x$$ more text" is inline math
+    content = rest.slice(0, -2);
+  } else {
+    const lines = [rest];
+    for (;;) {
+      if (++last >= endLine) return false;
+      const l = line(last);
+      if (l.endsWith('$$')) { lines.push(l.slice(0, -2)); break; }
+      lines.push(l);
+    }
+    content = lines.join('\n');
+  }
+  if (silent) return true;
+  state.line = last + 1;
+  const tok = state.push('math_block', 'math', 0);
+  tok.block = true;
+  tok.content = content;
+  tok.map = [startLine, state.line];
+  return true;
+}, { alt: ['paragraph', 'reference', 'blockquote', 'list'] });
+
+md.renderer.rules.math_inline = (tokens, idx) => tex(tokens[idx].content, tokens[idx].markup === '$$');
+md.renderer.rules.math_block = (tokens, idx) => tex(tokens[idx].content, true) + '\n';
+const fence = md.renderer.rules.fence;
+md.renderer.rules.fence = (tokens, idx, ...rest) =>
+  tokens[idx].info.trim() === 'math' ? tex(tokens[idx].content, true) + '\n' : fence(tokens, idx, ...rest);
+
 // YAML frontmatter (e.g. SKILL.md) is shown as a highlighted block instead of
 // being parsed as Markdown, where it turned into an <hr> plus a setext heading.
 const FRONTMATTER = /^﻿?---\r?\n([\s\S]*?\r?\n)?---[ \t]*(?:\r?\n|$)/;
@@ -88,6 +159,7 @@ const render = (p) => {
 
 // ---------- page ----------
 
+const KATEX = path.join(MODULES, 'katex/dist');
 const css = [
   'github-markdown-css/github-markdown.css',
   'markdown-it-github-alerts/styles/github-base.css',
@@ -96,6 +168,8 @@ const css = [
 ].map((f) => fs.readFileSync(path.join(MODULES, f), 'utf8')).join('\n')
   + `\n@media (prefers-color-scheme: light) {${fs.readFileSync(path.join(MODULES, 'highlight.js/styles/github.css'), 'utf8')}}`
   + `\n@media (prefers-color-scheme: dark) {${fs.readFileSync(path.join(MODULES, 'highlight.js/styles/github-dark.css'), 'utf8')}}`
+  // The stylesheet is inlined, so point its relative font URLs at the /__katex/ route.
+  + '\n' + fs.readFileSync(path.join(KATEX, 'katex.min.css'), 'utf8').replaceAll('url(fonts/', 'url(/__katex/fonts/')
   + '\n' + fs.readFileSync(path.join(HERE, 'page.css'), 'utf8');
 const js = fs.readFileSync(path.join(HERE, 'page.js'), 'utf8');
 const icon = 'data:image/svg+xml,' + encodeURIComponent(fs.readFileSync(path.join(HERE, 'icon.svg'), 'utf8'));
@@ -121,6 +195,7 @@ const MIME = {
   '.svg': 'image/svg+xml', '.webp': 'image/webp', '.ico': 'image/x-icon', '.pdf': 'application/pdf',
   '.html': 'text/html; charset=utf-8', '.css': 'text/css', '.js': 'text/javascript',
   '.json': 'application/json', '.txt': 'text/plain; charset=utf-8',
+  '.woff2': 'font/woff2', '.woff': 'font/woff', '.ttf': 'font/ttf',
 };
 const urlFor = (p) => '/' + path.relative(root, p).split(path.sep).map(encodeURIComponent).join('/');
 
@@ -141,6 +216,13 @@ const server = http.createServer((req, res) => {
   if (url.pathname === '/__quit') {
     res.end();
     return setTimeout(() => process.exit(0), 50);
+  }
+  if (url.pathname.startsWith('/__katex/fonts/')) {
+    const font = path.join(KATEX, 'fonts', path.basename(url.pathname));
+    return fs.readFile(font, (err, data) => {
+      res.writeHead(err ? 404 : 200, { 'Content-Type': MIME[path.extname(font)] ?? 'application/octet-stream' });
+      res.end(err ? undefined : data);
+    });
   }
   if (url.pathname === '/__open' && req.method === 'POST') {
     if (req.headers.origin !== `http://${req.headers.host}`) { // only our own pages
