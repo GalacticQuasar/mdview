@@ -96,6 +96,18 @@
     document.documentElement.classList.remove('hide-cursor');
   });
 
+  // Progress bar on the right edge: how far down the page we are.
+  const progress = document.getElementById('mdview-progress');
+  const updateProgress = () => {
+    const max = maxY();
+    progress.hidden = max <= 0;
+    progress.style.transform = `scaleY(${max > 0 ? Math.min(1, window.scrollY / max) : 0})`;
+  };
+  window.addEventListener('scroll', updateProgress, { passive: true });
+  window.addEventListener('resize', updateProgress);
+  new ResizeObserver(updateProgress).observe(content); // live reload, images loading
+  updateProgress();
+
   let statusTimer;
   const flash = (msg) => {
     status.textContent = msg;

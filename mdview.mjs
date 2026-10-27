@@ -185,6 +185,7 @@ const page = (p) => `<!doctype html>
 <article id="content">${render(p)}</article>
 <div id="mdview-bar" hidden><span>/</span><input id="mdview-search" spellcheck="false"></div>
 <div id="mdview-status" hidden></div>
+<div id="mdview-progress"></div>
 <script>${js}</script>
 </body></html>`;
 

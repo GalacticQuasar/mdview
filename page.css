@@ -23,6 +23,19 @@ body { margin: 0; min-height: 100vh; }
   border-top: 1px solid var(--borderColor-default, #d0d7de);
   color: var(--fgColor-default, inherit);
 }
+/* scroll progress, scaled from the top by page.js */
+#mdview-progress {
+  position: fixed;
+  top: 0;
+  right: 0;
+  width: 3px;
+  height: 100vh;
+  background: var(--borderColor-default, #d1d9e0);
+  transform: scaleY(0);
+  transform-origin: top;
+  pointer-events: none;
+}
+#mdview-progress[hidden] { display: none; }
 #mdview-bar[hidden], #mdview-status[hidden] { display: none; }
 #mdview-search {
   flex: 1;
