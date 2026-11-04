@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
-`mdview <file.md>` renders Markdown and shows it in a chromeless Chromium `--app` window (Edge/Chrome) with vim-style navigation and live reload. Plain Node ESM, no build step, no tests, no linter. Dependencies: `markdown-it`, `markdown-it-github-alerts`, `highlight.js`, `github-markdown-css`, `katex`.
+`mdview <file>` renders Markdown (other text files are shown verbatim) and shows it in a chromeless Chromium `--app` window (Edge/Chrome) with vim-style navigation and live reload. Plain Node ESM, no build step, no tests, no linter. Dependencies: `markdown-it`, `markdown-it-github-alerts`, `highlight.js`, `github-markdown-css`, `katex`.
 
 ## Commands
 
@@ -27,7 +27,7 @@ The user's `~/.bashrc` wraps this as `mdview() { node ~/projects/mdview/mdview.m
 ## Architecture
 
 - **`mdview.mjs`**: the whole server and launcher. It renders with markdown-it, serves pages, watches files, and spawns the browser. Routes:
-  - `/<path>.md` returns the full page; `?fragment` returns only the rendered HTML, which live reload swaps in.
+  - `/<path>.md`, and the path of the file named on the command line, return the full page; `?fragment` returns only the rendered HTML, which live reload swaps in.
   - `/__events?path=` is an SSE stream that sends `reload` when the file changes.
   - `/__quit` exits the server.
   - `/__katex/fonts/<name>` serves KaTeX's font files.
@@ -35,7 +35,7 @@ The user's `~/.bashrc` wraps this as `mdview() { node ~/projects/mdview/mdview.m
   - Anything else is served as a static file.
 - **`page.js` / `page.css`**: inlined into every page. They're read once at startup and concatenated with the vendored CSS from `node_modules`, so restart mdview after editing them.
 - **`icon.svg`**: also read once at startup, and embedded as a `data:` favicon. Edge uses it for the app window's title bar and taskbar icon. It switches stroke color with `prefers-color-scheme` so it stays visible in light mode. It's Lucide's "view" icon, chosen by the user; keep the ISC license comment inside it.
-- **Markdown only:** the CLI refuses files whose extension isn't `.md`, `.markdown`, `.mdown` or `.mkd` (`isMarkdown()`, the same check the server uses to decide what to render).
+- **Which files open:** `.md`, `.markdown`, `.mdown` and `.mkd` (`isMarkdown()`) render as Markdown. Any other file opens as verbatim text in a `<pre class="plain-text">`, wrapped and in the normal page, so keys and live reload still work. Parsing `.txt` as Markdown was rejected because it collapses line breaks and interprets `*`, `$` and `#`. The CLI refuses directories, and refuses non-Markdown files with a NUL byte in the first 8KB (`isBinary()`, git's heuristic). The server only gives this page treatment to Markdown and to the file named on the command line (`target === file`); other paths stay static files, so a link from a Markdown page to a `.txt` still goes to `/__open`.
 - **YAML frontmatter:** `render()` cuts a leading `---`…`---` block off before markdown-it sees it, and shows it as a highlight.js YAML `<pre class="frontmatter">` above the body. Otherwise markdown-it renders it as an `<hr>` and a setext `<h2>`. The user chose a code block over GitHub's table rendering, because a table would need a YAML parser and gets cramped with long `description`s. Empty frontmatter is dropped. The YAML isn't validated, so a file that opens with a `---` thematic break and has another `---` line later is also treated as frontmatter.
 - **Math:** GitHub's syntax is parsed by small custom markdown-it rules in `mdview.mjs` and rendered server-side with `katex.renderToString`, so live-reload fragments need no client JS:
   - `$…$` and `` $`…`$ `` are inline. `$$…$$` inside a paragraph renders as display math.

@@ -1,6 +1,6 @@
 # mdview
 
-A terminal-launched Markdown viewer with vim keybindings and live reload. Opens in a chromeless Chrome/Edge window, with no Electron.
+A terminal-launched Markdown and text file viewer with vim keybindings and live reload. Opens in a chromeless Chrome/Edge window, with no Electron.
 
 Features:
 - Smooth Scrolling
@@ -11,6 +11,7 @@ Features:
 - YAML frontmatter (e.g. in `SKILL.md` files) shown as a highlighted block at the top
 - Live reload on save, keeping your scroll position
 - Follows links to other `.md` files and shows relative images; web links open in your default browser
+- Other text files (`.txt`, logs, `LICENSE`, ...) shown as-is, with the same keys and live reload
 - Progress bar on the right edge showing how far down the file you are
 - Mouse cursor hides while you scroll with the keyboard and comes back when you move the mouse
 
@@ -58,7 +59,7 @@ After editing, open a new terminal or reload the file (e.g. `source ~/.bashrc`).
 mdview README.md [--size 1400x1460] [--pos 580,0] [--no-open]
 ```
 
-The file must end in `.md`, `.markdown`, `.mdown` or `.mkd`. `--no-open` just prints the URL. Set `MDVIEW_BROWSER` to use a specific Chromium-based browser.
+Files ending in `.md`, `.markdown`, `.mdown` or `.mkd` are rendered as Markdown. Any other text file is shown verbatim in monospace, and binary files are refused. `--no-open` just prints the URL. Set `MDVIEW_BROWSER` to use a specific Chromium-based browser.
 
 ## Keys
 
