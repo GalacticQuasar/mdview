@@ -77,6 +77,14 @@ Files ending in `.md`, `.markdown`, `.mdown` or `.mkd` are rendered as Markdown.
 | `r` | re-render |
 | `q` | quit |
 
+## Development
+
+```sh
+npm test
+```
+
+runs the tests in `mdview.test.mjs`, which cover rendering and the server. Rendering lives in `render.mjs`, and the server and launcher in `mdview.mjs`.
+
 ## Claude Code plugin
 
 `claude-plugin/` is a Claude Code plugin that adds a `/mdview` command, which opens Claude's last response in mdview. It runs without calling the model, and pipes the response to `mdview -` (the newest assistant message with text, so the short notes Claude writes between tool calls are left out).

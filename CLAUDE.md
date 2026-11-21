@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
-`mdview <file>` renders Markdown (other text files are shown verbatim) and shows it in a chromeless Chromium `--app` window (Edge/Chrome) with vim-style navigation and live reload. Plain Node ESM, no build step, no tests, no linter. Dependencies: `markdown-it`, `markdown-it-github-alerts`, `highlight.js`, `github-markdown-css`, `katex`.
+`mdview <file>` renders Markdown (other text files are shown verbatim) and shows it in a chromeless Chromium `--app` window (Edge/Chrome) with vim-style navigation and live reload. Plain Node ESM, no build step, no linter. Tests use Node's built-in `node:test`. Dependencies: `markdown-it`, `markdown-it-github-alerts`, `highlight.js`, `github-markdown-css`, `katex`.
 
 ## Commands
 
@@ -14,7 +14,8 @@ node mdview.mjs README.md                                # open a window
 node mdview.mjs README.md --size 933x1013 --pos 387,0    # window geometry
 node mdview.mjs README.md --no-open                      # just print the URL (for testing)
 echo '# hi' | node mdview.mjs - --no-open                # read Markdown from stdin
-node --check mdview.mjs && node --check page.js          # syntax check
+node --check mdview.mjs && node --check render.mjs && node --check page.js   # syntax check
+npm test                                                 # run mdview.test.mjs
 ```
 
 The user's `~/.bashrc` wraps this as `mdview() { node ~/projects/mdview/mdview.mjs --size 933x1013 --pos 387,0 "$@"; }`. `--size`/`--pos` are in scaled pixels. The user's display is 2560×1600 at 150% Windows scaling, so it's 1707×1067 in scaled pixels, and screen-pixel numbers have to be divided by 1.5.
@@ -27,9 +28,10 @@ The user's `~/.bashrc` wraps this as `mdview() { node ~/projects/mdview/mdview.m
 
 ## Architecture
 
-- **`mdview.mjs`**: the whole server and launcher. It renders with markdown-it, serves pages, watches files, and spawns the browser. Routes:
+- **`render.mjs`**: Markdown rendering: markdown-it with heading ids, alerts, math and frontmatter. `render(src, markdown)` takes text, not a path, and does no I/O, so tests import it directly. It was split out of `mdview.mjs` for that reason only, since `mdview.mjs` parses arguments and may exit as soon as it loads. Further splitting was judged not worth it for a file this size.
+- **`mdview.mjs`**: the server and launcher. It reads files (or stdin) and hands them to `render()`, serves pages, watches files, and spawns the browser. Routes:
   - `/<path>.md`, and the path of the file named on the command line, return the full page; `?fragment` returns only the rendered HTML, which live reload swaps in.
-  - `/__events?path=` is an SSE stream that sends `reload` when the file changes.
+  - `/__events?path=` is an SSE stream that sends `reload` when the file changes. `page.js` sends `path` URI-encoded and `searchParams.get` decodes it, so the server must not decode it again; it used to, which crashed the server on file names containing `%`.
   - `/__quit` exits the server.
   - `/__katex/fonts/<name>` serves KaTeX's font files.
   - `POST /__open` opens a link in the default browser (`rundll32` on WSL, `open` on macOS, `xdg-open` on Linux). It only accepts `http`, `https` and `mailto` links, and only from mdview's own pages (checked via the `Origin` header).
@@ -45,15 +47,15 @@ The user's `~/.bashrc` wraps this as `mdview() { node ~/projects/mdview/mdview.m
   - mdview is found at `$.plugin.root/../mdview.mjs`, so the plugin must load from this repo (`CLAUDE_CODE_PLUGIN_DIRS` or `--plugin-dir`); `/plugin install` copies it into a cache where that path doesn't exist. Once mdview is detached its errors go to `/dev/null` and `sh` exits 0, so the plugin checks `$.fs.exists` on that path first and reports it instead of a false "Opened in mdview." Window geometry comes from the `args` `userConfig` field (`pluginConfigs.mdview.options.args` in settings), since the plugin can't see the user's bash function.
   - Check with `claude plugin validate claude-plugin` (the LICENSE and icon complaints are only for the public plugin directory). End-to-end test without a window: `MDVIEW_BROWSER=<script that logs its args> claude -p -c --fork-session --no-session-persistence --plugin-dir claude-plugin /mdview` continues the latest session, runs the command, and the logged `--app=` URL can be fetched with `?fragment`.
 - **YAML frontmatter:** `render()` cuts a leading `---`…`---` block off before markdown-it sees it, and shows it as a highlight.js YAML `<pre class="frontmatter">` above the body. Otherwise markdown-it renders it as an `<hr>` and a setext `<h2>`. The user chose a code block over GitHub's table rendering, because a table would need a YAML parser and gets cramped with long `description`s. Empty frontmatter is dropped. The YAML isn't validated, so a file that opens with a `---` thematic break and has another `---` line later is also treated as frontmatter.
-- **Math:** GitHub's syntax is parsed by small custom markdown-it rules in `mdview.mjs` and rendered server-side with `katex.renderToString`, so live-reload fragments need no client JS:
+- **Math:** GitHub's syntax is parsed by small custom markdown-it rules in `render.mjs` and rendered server-side with `katex.renderToString`, so live-reload fragments need no client JS:
   - `$…$` and `` $`…`$ `` are inline. `$$…$$` inside a paragraph renders as display math.
   - A line starting with `$$` begins a display block, which ends at a line ending with `$$`.
   - ` ```math ` fences are display math (the `fence` renderer is wrapped).
 
   A lone `$` opens math only if a non-space follows, and must close at the *next* unescaped `$`, which must come after a non-space and not be followed by a digit. Otherwise it's plain text, so prices like "$5 and $10" stay text. `markdown-it-texmath` was tried and dropped: it outputs custom `<eq>`/`<section>` tags, and combining its `dollars` and `gitlab` modes registers duplicate rule names. KaTeX errors render inline in red (`throwOnError: false`). `katex.min.css` is inlined with its `url(fonts/…)` rewritten to `/__katex/fonts/`, a route that serves `node_modules/katex/dist/fonts` (basename only).
-- **Serve root** is the file's git toplevel, or its directory if it isn't in a repo. Requests outside the root get a 403.
+- **Serve root** is the file's git toplevel, or its directory if it isn't in a repo. Requests outside the root get a 403, `/__events` paths included, and a malformed `%`-escape gets a 400 (it used to throw and kill the server).
 - **Lifecycle:** the process exits when the window closes. It waits 1.5s after the last SSE client disconnects, which lets navigation between pages reconnect in time. If no client connects within 30s it exits too, so `--no-open` test servers die on their own.
-- **File watching** watches the *directory*, not the file, because Neovim saves by rename.
+- **File watching** watches the *directory*, not the file, because Neovim saves by rename. If that directory is missing or the watcher errors, there are just no reloads: the SSE stream stays open, because it also drives the lifecycle. A throw there used to kill the server.
 
 ## Non-obvious decisions (don't undo without reason)
 
@@ -81,7 +83,9 @@ The user's `~/.bashrc` wraps this as `mdview() { node ~/projects/mdview/mdview.m
 
 ## Testing changes
 
-There are no automated tests. To verify keybindings and rendering, start a server with `--no-open` and drive it with `playwright-cli open --browser=chromium <url>`; plain `open` fails because Chrome isn't installed in WSL. Then `press` keys and `eval 'scrollY'`. Use `set-color-scheme dark` and `screenshot` for visual checks. `.playwright-cli/` output is gitignored. Stop stray servers with `pkill -f '^node mdview'`; a looser pattern can match and kill the shell running the command.
+`npm test` runs `mdview.test.mjs` (about 2s). It covers `render()` (heading ids, the math rules, frontmatter, alerts, plain text) and the server through real `--no-open` processes on a temp directory (pages, `?fragment`, static files, the 403 outside the root, malformed `%`-escapes, the event stream for missing directories and `%` in names, stdin, refusing binary and missing files). Add a test when changing those. Each test was checked by breaking the code it covers; "$5 and $10" alone didn't exercise the digit rule (the space rule already stops it), hence "$5-$10". Requests in the server tests use `http.get`, because `fetch` normalizes `..` away before the server sees it.
+
+Browser behavior (keys, scrolling, history, cursor) has no automated tests. To verify keybindings and rendering, start a server with `--no-open` and drive it with `playwright-cli open --browser=chromium <url>`; plain `open` fails because Chrome isn't installed in WSL. Then `press` keys and `eval 'scrollY'`. Use `set-color-scheme dark` and `screenshot` for visual checks. `.playwright-cli/` output is gitignored. Stop stray servers with `pkill -f '^node mdview'`; a looser pattern can match and kill the shell running the command.
 
 Pitfalls:
 - `playwright-cli click` scrolls the element into view first, which ruins scroll-position tests. Trigger clicks in the page instead, with `eval 'document.querySelector(...).click(), 1'`.

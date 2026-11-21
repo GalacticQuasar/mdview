@@ -2,7 +2,9 @@
   "name": "mdview",
   "version": "1.0.0",
   "description": "Markdown viewer with vim keybindings and live reload",
-  "scripts": {},
+  "scripts": {
+    "test": "node --test"
+  },
   "keywords": [],
   "author": "",
   "license": "ISC",

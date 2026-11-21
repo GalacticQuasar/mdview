@@ -8,17 +8,12 @@ import path from 'node:path';
 import os from 'node:os';
 import { spawn, execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import MarkdownIt from 'markdown-it';
-import githubAlerts from 'markdown-it-github-alerts';
-import hljs from 'highlight.js';
-import katex from 'katex';
+import { render, isMarkdown, escapeHtml } from './render.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const MODULES = path.join(HERE, 'node_modules');
 
 // ---------- args ----------
-
-const isMarkdown = (p) => /\.(md|markdown|mdown|mkd)$/i.test(p);
 
 // Same heuristic as git: a NUL byte near the start means binary.
 const isBinary = (p) => {
@@ -69,116 +64,7 @@ try {
 
 // ---------- markdown ----------
 
-const md = new MarkdownIt({
-  html: true,
-  linkify: true,
-  typographer: true,
-  highlight(code, lang) {
-    if (lang && hljs.getLanguage(lang)) {
-      return `<pre><code class="hljs language-${lang}">${hljs.highlight(code, { language: lang, ignoreIllegals: true }).value}</code></pre>`;
-    }
-    return '';
-  },
-}).use(githubAlerts);
-
-// GitHub-style heading ids so #anchor links work.
-md.core.ruler.push('heading_ids', (state) => {
-  const seen = new Map();
-  state.tokens.forEach((tok, i) => {
-    if (tok.type !== 'heading_open') return;
-    const text = state.tokens[i + 1].children.map((c) => c.content).join('');
-    let slug = text.toLowerCase().trim().replace(/[^\p{L}\p{N}\s_-]/gu, '').replace(/\s/g, '-');
-    const n = seen.get(slug) ?? 0;
-    seen.set(slug, n + 1);
-    if (n) slug += `-${n}`;
-    tok.attrSet('id', slug);
-  });
-});
-
-// GitHub-style math, rendered with KaTeX: $inline$, $`inline`$, $$display$$ and ```math blocks.
-const tex = (src, displayMode) => katex.renderToString(src, { displayMode, throwOnError: false });
-
-const isSpace = (c) => c === ' ' || c === '\t' || c === '\n';
-
-md.inline.ruler.before('escape', 'math_inline', (state, silent) => {
-  const src = state.src, start = state.pos;
-  if (src[start] !== '$') return false;
-  let open = '$', close = '$';
-  if (src[start + 1] === '`') { open = '$`'; close = '`$'; }
-  else if (src[start + 1] === '$') { open = close = '$$'; }
-  const from = start + open.length;
-  if (open === '$' && (from >= state.posMax || isSpace(src[from]))) return false;
-  let end = from;
-  for (;;) {
-    end = src.indexOf(close, end);
-    if (end < 0 || end + close.length > state.posMax) return false;
-    if (open !== '$') break;
-    if (src[end - 1] === '\\') { end++; continue; } // \$ inside math
-    // A lone $ must close at the next $, after a non-space and before a non-digit,
-    // so "$5 and $10" stays text.
-    if (isSpace(src[end - 1]) || /\d/.test(src[end + 1] ?? '')) return false;
-    break;
-  }
-  if (end === from) return false;
-  if (!silent) {
-    const tok = state.push('math_inline', 'math', 0);
-    tok.content = src.slice(from, end);
-    tok.markup = open;
-  }
-  state.pos = end + close.length;
-  return true;
-});
-
-// $$ on its own line(s): "$$ x $$", or "$$" ... "$$" across lines.
-md.block.ruler.before('fence', 'math_block', (state, startLine, endLine, silent) => {
-  if (state.sCount[startLine] - state.blkIndent >= 4) return false;
-  const line = (n) => state.src.slice(state.bMarks[n] + state.tShift[n], state.eMarks[n]).trimEnd();
-  const first = line(startLine);
-  if (!first.startsWith('$$')) return false;
-  let content, last = startLine;
-  const rest = first.slice(2);
-  if (rest.includes('$$')) {
-    if (!rest.endsWith('$$') || rest.length < 3) return false; // "$$x$$ more text" is inline math
-    content = rest.slice(0, -2);
-  } else {
-    const lines = [rest];
-    for (;;) {
-      if (++last >= endLine) return false;
-      const l = line(last);
-      if (l.endsWith('$$')) { lines.push(l.slice(0, -2)); break; }
-      lines.push(l);
-    }
-    content = lines.join('\n');
-  }
-  if (silent) return true;
-  state.line = last + 1;
-  const tok = state.push('math_block', 'math', 0);
-  tok.block = true;
-  tok.content = content;
-  tok.map = [startLine, state.line];
-  return true;
-}, { alt: ['paragraph', 'reference', 'blockquote', 'list'] });
-
-md.renderer.rules.math_inline = (tokens, idx) => tex(tokens[idx].content, tokens[idx].markup === '$$');
-md.renderer.rules.math_block = (tokens, idx) => tex(tokens[idx].content, true) + '\n';
-const fence = md.renderer.rules.fence;
-md.renderer.rules.fence = (tokens, idx, ...rest) =>
-  tokens[idx].info.trim() === 'math' ? tex(tokens[idx].content, true) + '\n' : fence(tokens, idx, ...rest);
-
-// YAML frontmatter (e.g. SKILL.md) is shown as a highlighted block instead of
-// being parsed as Markdown, where it turned into an <hr> plus a setext heading.
-const FRONTMATTER = /^﻿?---\r?\n([\s\S]*?\r?\n)?---[ \t]*(?:\r?\n|$)/;
-
-const render = (p) => {
-  const src = isStdin(p) ? stdin : fs.readFileSync(p, 'utf8');
-  if (!isMarkdown(p)) return `<pre class="plain-text">${escapeHtml(src.replace(/^\uFEFF/, ''))}</pre>`;
-  const m = src.match(FRONTMATTER);
-  if (!m) return md.render(src);
-  const body = md.render(src.slice(m[0].length));
-  if (!m[1]?.trim()) return body;
-  const yaml = hljs.highlight(m[1], { language: 'yaml', ignoreIllegals: true }).value;
-  return `<pre class="frontmatter"><code class="hljs language-yaml">${yaml}</code></pre>\n${body}`;
-};
+const renderFile = (p) => render(isStdin(p) ? stdin : fs.readFileSync(p, 'utf8'), isMarkdown(p));
 
 // ---------- page ----------
 
@@ -197,15 +83,13 @@ const css = [
 const js = fs.readFileSync(path.join(HERE, 'page.js'), 'utf8');
 const icon = 'data:image/svg+xml,' + encodeURIComponent(fs.readFileSync(path.join(HERE, 'icon.svg'), 'utf8'));
 
-const escapeHtml = (s) => s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
-
 const page = (p) => `<!doctype html>
 <html><head><meta charset="utf-8">
 <title>${escapeHtml(path.basename(p))}</title>
 <link rel="icon" type="image/svg+xml" href="${icon}">
 <style>${css}</style>
 </head><body class="markdown-body">
-<article id="content">${render(p)}</article>
+<article id="content">${renderFile(p)}</article>
 <div id="mdview-bar" hidden><span>/</span><input id="mdview-search" spellcheck="false"></div>
 <div id="mdview-status" hidden></div>
 <div id="mdview-progress"></div>
@@ -220,6 +104,11 @@ const MIME = {
   '.html': 'text/html; charset=utf-8', '.css': 'text/css', '.js': 'text/javascript',
   '.json': 'application/json', '.txt': 'text/plain; charset=utf-8',
   '.woff2': 'font/woff2', '.woff': 'font/woff', '.ttf': 'font/ttf',
+};
+// The absolute path for a request path, or null when it falls outside the serve root.
+const inRoot = (p) => {
+  const abs = path.join(root, p);
+  return abs === root || abs.startsWith(root + path.sep) ? abs : null;
 };
 const urlFor = (p) => '/' + path.relative(root, p).split(path.sep).map(encodeURIComponent).join('/');
 
@@ -262,27 +151,35 @@ const server = http.createServer((req, res) => {
     return;
   }
 
-  const target = path.join(root, decodeURIComponent(url.pathname));
-  if (target !== root && !target.startsWith(root + path.sep)) {
+  let target;
+  try { target = inRoot(decodeURIComponent(url.pathname)); } catch { // malformed %-escape
+    res.writeHead(400);
+    return res.end();
+  }
+  // searchParams.get has already decoded `path`, so it isn't decoded again.
+  const watched = url.pathname === '/__events' ? inRoot(url.searchParams.get('path') ?? '') : undefined;
+  if (!target || watched === null) {
     res.writeHead(403);
     return res.end();
   }
 
-  if (url.pathname === '/__events') {
-    const watched = path.join(root, decodeURIComponent(url.searchParams.get('path') ?? ''));
+  if (watched) {
     res.writeHead(200, { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache' });
     res.write(': hi\n\n');
     clients++;
     clearTimeout(exitTimer);
     if (isStdin(watched)) return req.on('close', clientGone);
     // Watch the directory, not the file: editors like Neovim save by rename.
-    let debounce;
-    const watcher = fs.watch(path.dirname(watched), (_, name) => {
-      if (name !== path.basename(watched)) return;
-      clearTimeout(debounce);
-      debounce = setTimeout(() => res.write('data: reload\n\n'), 50);
-    });
-    req.on('close', () => { watcher.close(); clientGone(); });
+    // A missing or deleted directory just means no reloads; the stream stays open for the lifecycle.
+    let debounce, watcher;
+    try {
+      watcher = fs.watch(path.dirname(watched), (_, name) => {
+        if (name !== path.basename(watched)) return;
+        clearTimeout(debounce);
+        debounce = setTimeout(() => res.write('data: reload\n\n'), 50);
+      }).on('error', () => {});
+    } catch {}
+    req.on('close', () => { watcher?.close(); clientGone(); });
     return;
   }
 
@@ -294,7 +191,7 @@ const server = http.createServer((req, res) => {
     try {
       if (isMarkdown(target) || target === file) {
         res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store' });
-        return res.end(url.searchParams.has('fragment') ? render(target) : page(target));
+        return res.end(url.searchParams.has('fragment') ? renderFile(target) : page(target));
       }
     } catch (e) {
       res.writeHead(500, { 'Content-Type': 'text/plain' });
