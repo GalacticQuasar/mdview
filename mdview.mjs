@@ -47,6 +47,7 @@ if (!opts.file) { console.error(USAGE); process.exit(1); }
 // directory, so relative links and images resolve from there; there's no live reload.
 const stdin = opts.file === '-' ? readStdin() : null;
 const file = stdin === null ? path.resolve(opts.file) : path.resolve('stdin.md');
+const isStdin = (p) => stdin !== null && p === file;
 
 function readStdin() {
   if (process.stdin.isTTY) { console.error('mdview: nothing piped to stdin'); process.exit(1); }
@@ -169,7 +170,7 @@ md.renderer.rules.fence = (tokens, idx, ...rest) =>
 const FRONTMATTER = /^﻿?---\r?\n([\s\S]*?\r?\n)?---[ \t]*(?:\r?\n|$)/;
 
 const render = (p) => {
-  const src = stdin !== null && p === file ? stdin : fs.readFileSync(p, 'utf8');
+  const src = isStdin(p) ? stdin : fs.readFileSync(p, 'utf8');
   if (!isMarkdown(p)) return `<pre class="plain-text">${escapeHtml(src.replace(/^\uFEFF/, ''))}</pre>`;
   const m = src.match(FRONTMATTER);
   if (!m) return md.render(src);
@@ -273,7 +274,7 @@ const server = http.createServer((req, res) => {
     res.write(': hi\n\n');
     clients++;
     clearTimeout(exitTimer);
-    if (stdin !== null && watched === file) return req.on('close', clientGone);
+    if (isStdin(watched)) return req.on('close', clientGone);
     // Watch the directory, not the file: editors like Neovim save by rename.
     let debounce;
     const watcher = fs.watch(path.dirname(watched), (_, name) => {
@@ -286,8 +287,7 @@ const server = http.createServer((req, res) => {
   }
 
   fs.stat(target, (err, st) => {
-    const isStdin = stdin !== null && target === file;
-    if (!isStdin && (err || !st.isFile())) {
+    if (!isStdin(target) && (err || !st.isFile())) {
       res.writeHead(404, { 'Content-Type': 'text/plain' });
       return res.end('not found');
     }
