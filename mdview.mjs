@@ -29,7 +29,7 @@ const isBinary = (p) => {
   return buf.subarray(0, n).includes(0);
 };
 
-const USAGE = `usage: mdview <file> [--size WxH] [--pos X,Y] [--no-open]`;
+const USAGE = `usage: mdview <file | -> [--size WxH] [--pos X,Y] [--no-open]`;
 const opts = { size: null, pos: null, open: true, file: null };
 const argv = process.argv.slice(2);
 for (let i = 0; i < argv.length; i++) {
@@ -43,10 +43,21 @@ for (let i = 0; i < argv.length; i++) {
 }
 if (!opts.file) { console.error(USAGE); process.exit(1); }
 
-const file = path.resolve(opts.file);
-if (!fs.existsSync(file)) { console.error(`mdview: no such file: ${opts.file}`); process.exit(1); }
-if (!fs.statSync(file).isFile()) { console.error(`mdview: not a file: ${opts.file}`); process.exit(1); }
-if (!isMarkdown(file) && isBinary(file)) { console.error(`mdview: not a text file: ${opts.file}`); process.exit(1); }
+// "-" reads Markdown from stdin. It's served as a virtual stdin.md in the current
+// directory, so relative links and images resolve from there; there's no live reload.
+const stdin = opts.file === '-' ? readStdin() : null;
+const file = stdin === null ? path.resolve(opts.file) : path.resolve('stdin.md');
+
+function readStdin() {
+  if (process.stdin.isTTY) { console.error('mdview: nothing piped to stdin'); process.exit(1); }
+  return fs.readFileSync(0, 'utf8');
+}
+
+if (stdin === null) {
+  if (!fs.existsSync(file)) { console.error(`mdview: no such file: ${opts.file}`); process.exit(1); }
+  if (!fs.statSync(file).isFile()) { console.error(`mdview: not a file: ${opts.file}`); process.exit(1); }
+  if (!isMarkdown(file) && isBinary(file)) { console.error(`mdview: not a text file: ${opts.file}`); process.exit(1); }
+}
 
 // Serve from the git root (so ../images work inside a repo), else the file's directory.
 let root = path.dirname(file);
@@ -158,7 +169,7 @@ md.renderer.rules.fence = (tokens, idx, ...rest) =>
 const FRONTMATTER = /^﻿?---\r?\n([\s\S]*?\r?\n)?---[ \t]*(?:\r?\n|$)/;
 
 const render = (p) => {
-  const src = fs.readFileSync(p, 'utf8');
+  const src = stdin !== null && p === file ? stdin : fs.readFileSync(p, 'utf8');
   if (!isMarkdown(p)) return `<pre class="plain-text">${escapeHtml(src.replace(/^\uFEFF/, ''))}</pre>`;
   const m = src.match(FRONTMATTER);
   if (!m) return md.render(src);
@@ -262,6 +273,7 @@ const server = http.createServer((req, res) => {
     res.write(': hi\n\n');
     clients++;
     clearTimeout(exitTimer);
+    if (stdin !== null && watched === file) return req.on('close', clientGone);
     // Watch the directory, not the file: editors like Neovim save by rename.
     let debounce;
     const watcher = fs.watch(path.dirname(watched), (_, name) => {
@@ -274,7 +286,8 @@ const server = http.createServer((req, res) => {
   }
 
   fs.stat(target, (err, st) => {
-    if (err || !st.isFile()) {
+    const isStdin = stdin !== null && target === file;
+    if (!isStdin && (err || !st.isFile())) {
       res.writeHead(404, { 'Content-Type': 'text/plain' });
       return res.end('not found');
     }

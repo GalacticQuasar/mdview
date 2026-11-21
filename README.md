@@ -12,6 +12,7 @@ Features:
 - Live reload on save, keeping your scroll position
 - Follows links to other `.md` files and shows relative images; web links open in your default browser
 - Other text files (`.txt`, logs, `LICENSE`, ...) shown as-is, with the same keys and live reload
+- Reads Markdown from stdin with `mdview -`
 - Progress bar on the right edge showing how far down the file you are
 - Mouse cursor hides while you scroll with the keyboard and comes back when you move the mouse
 
@@ -57,9 +58,10 @@ After editing, open a new terminal or reload the file (e.g. `source ~/.bashrc`).
 
 ```sh
 mdview README.md [--size 1400x1460] [--pos 580,0] [--no-open]
+git show HEAD~3:README.md | mdview -
 ```
 
-Files ending in `.md`, `.markdown`, `.mdown` or `.mkd` are rendered as Markdown. Any other text file is shown verbatim in monospace, and binary files are refused. `--no-open` just prints the URL. Set `MDVIEW_BROWSER` to use a specific Chromium-based browser.
+Files ending in `.md`, `.markdown`, `.mdown` or `.mkd` are rendered as Markdown. Any other text file is shown verbatim in monospace, and binary files are refused. `-` reads Markdown from stdin instead; relative links and images resolve from the current directory, and there's no live reload. `--no-open` just prints the URL. Set `MDVIEW_BROWSER` to use a specific Chromium-based browser.
 
 ## Keys
 
