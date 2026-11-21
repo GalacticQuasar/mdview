@@ -76,3 +76,18 @@ Files ending in `.md`, `.markdown`, `.mdown` or `.mkd` are rendered as Markdown.
 | `H` / `L`, `Ctrl-O` / `Ctrl-I` | back / forward |
 | `r` | re-render |
 | `q` | quit |
+
+## Claude Code plugin
+
+`claude-plugin/` is a Claude Code plugin that adds a `/mdview` command, which opens Claude's last response in mdview. It runs without calling the model, and pipes the response to `mdview -` (the newest assistant message with text, so the short notes Claude writes between tool calls are left out).
+
+The plugin runs `../mdview.mjs` from its own folder, so load it from this repo rather than installing a copy. In `~/.claude/settings.json`:
+
+```json
+{
+  "env": { "CLAUDE_CODE_PLUGIN_DIRS": "~/projects/mdview/claude-plugin" },
+  "pluginConfigs": { "mdview": { "options": { "args": "--size 933x1013 --pos 387,0" } } }
+}
+```
+
+`args` holds extra arguments for mdview (it can also be set in `/config`). For a single session, `claude --plugin-dir ~/projects/mdview/claude-plugin` works too.

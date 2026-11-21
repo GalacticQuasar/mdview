@@ -1,0 +1,13 @@
+{
+  "name": "mdview",
+  "version": "0.1.0",
+  "description": "/mdview opens Claude's last response in mdview",
+  "userConfig": {
+    "args": {
+      "type": "string",
+      "title": "mdview arguments",
+      "description": "Extra arguments for mdview, e.g. --size 933x1013 --pos 387,0",
+      "default": ""
+    }
+  }
+}
