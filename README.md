@@ -1,5 +1,7 @@
 # mdview
 
+[![CI](https://github.com/GalacticQuasar/mdview/actions/workflows/ci.yml/badge.svg)](https://github.com/GalacticQuasar/mdview/actions/workflows/ci.yml)
+
 **A Markdown viewer you launch from the terminal.** `mdview README.md` opens the file, rendered the
 way GitHub renders it, in its own minimal window. You navigate with vim keys, and the window reloads
 whenever you save. It uses the Chrome or Edge you already have, so there's no Electron and nothing

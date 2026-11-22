@@ -1,0 +1,36 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+        # 20 is the oldest version package.json's "engines" allows.
+        node: [20, 22, 24]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+      - run: npm ci
+      - run: node --check mdview.mjs && node --check render.mjs && node --check page.js
+      - run: npm test
+      # Installs the packed tarball the way users get it, then checks it starts and serves a page.
+      - name: Smoke test the packed package
+        shell: bash
+        run: |
+          npm pack --pack-destination "$RUNNER_TEMP"
+          npm install -g --prefix "$RUNNER_TEMP/prefix" "$RUNNER_TEMP"/*.tgz
+          cd "$RUNNER_TEMP"
+          "$RUNNER_TEMP/prefix/bin/mdview" --version
+          echo '# hi $x^2$' | "$RUNNER_TEMP/prefix/bin/mdview" - --no-open > url.txt &
+          for i in $(seq 50); do grep -q http url.txt && break; sleep 0.2; done
+          curl -sf "$(cat url.txt)?fragment" | grep -q 'class="katex"'

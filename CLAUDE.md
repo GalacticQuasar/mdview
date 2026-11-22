@@ -91,6 +91,8 @@ Published to npm as `@galacticquasar/mdview` (the command is still `mdview`, fro
 
 `npm test` runs `mdview.test.mjs` (about 2s). It covers `render()` (heading ids, the math rules, frontmatter, alerts, plain text) and the server through real `--no-open` processes on a temp directory (pages, `?fragment`, static files, the 403 outside the root, malformed `%`-escapes, the event stream for missing directories and `%` in names, stdin, refusing binary and missing files). Add a test when changing those. Each test was checked by breaking the code it covers; "$5 and $10" alone didn't exercise the digit rule (the space rule already stops it), hence "$5-$10". Requests in the server tests use `http.get`, because `fetch` normalizes `..` away before the server sees it.
 
+CI (`.github/workflows/ci.yml`) runs the syntax check and `npm test` on Ubuntu and macOS with Node 20, 22 and 24 (20 is the `engines` minimum), then installs the `npm pack` tarball and checks that it serves a page with math rendered, which catches files missing from `files` and dependency-path problems. It has no browser, so it can't catch window or key problems on macOS.
+
 Browser behavior (keys, scrolling, history, cursor) has no automated tests. To verify keybindings and rendering, start a server with `--no-open` and drive it with `playwright-cli open --browser=chromium <url>`; plain `open` fails because Chrome isn't installed in WSL. Then `press` keys and `eval 'scrollY'`. Use `set-color-scheme dark` and `screenshot` for visual checks. `.playwright-cli/` output is gitignored. Stop stray servers with `pkill -f '^node mdview'`; a looser pattern can match and kill the shell running the command.
 
 Pitfalls:
