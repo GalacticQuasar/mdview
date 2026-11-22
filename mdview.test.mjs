@@ -66,6 +66,15 @@ describe('render', () => {
     assert.match(render('> [!NOTE]\n> Careful'), /markdown-alert-note/);
   });
 
+  test('renders task lists with GitHub classes, nested too', () => {
+    const html = render('- [x] done\n- [ ] todo\n  - [X] nested\n- not [x] a task\n- [x]');
+    assert.equal(html.match(/<ul class="contains-task-list">/g).length, 2);
+    assert.equal(html.match(/<li class="task-list-item"><input type="checkbox" class="task-list-item-checkbox" disabled checked> /g).length, 2);
+    assert.match(html, /<li class="task-list-item"><input type="checkbox" class="task-list-item-checkbox" disabled> todo/);
+    assert.match(html, /<li>not \[x\] a task<\/li>/);
+    assert.match(html, /<li>\[x\]<\/li>/);
+  });
+
   test('shows non-Markdown text verbatim', () => {
     assert.equal(render('﻿<b>*x*</b> $y$\n', false), '<pre class="plain-text">&lt;b&gt;*x*&lt;/b&gt; $y$\n</pre>');
   });

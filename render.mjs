@@ -36,6 +36,30 @@ md.core.ruler.push('heading_ids', (state) => {
   });
 });
 
+// GitHub-style task lists: a list item starting with "[ ] " or "[x] " gets a disabled
+// checkbox, with GitHub's classes, which github-markdown-css already styles.
+md.core.ruler.push('task_lists', (state) => {
+  const tokens = state.tokens;
+  tokens.forEach((tok, i) => {
+    if (tok.type !== 'list_item_open' || tokens[i + 2]?.type !== 'inline') return;
+    const first = tokens[i + 2].children[0];
+    const m = first?.type === 'text' && /^\[([ xX])\][ \t]+/.exec(first.content);
+    if (!m) return;
+    first.content = first.content.slice(m[0].length);
+    const box = new state.Token('html_inline', '', 0);
+    box.content = `<input type="checkbox" class="task-list-item-checkbox" disabled${m[1] === ' ' ? '' : ' checked'}> `;
+    tokens[i + 2].children.unshift(box);
+    tok.attrJoin('class', 'task-list-item');
+    // The list this item belongs to is the nearest earlier list opening one level up.
+    for (let j = i - 1; j >= 0; j--) {
+      if (tokens[j].level === tok.level - 1 && /^(bullet|ordered)_list_open$/.test(tokens[j].type)) {
+        if (!tokens[j].attrGet('class')?.includes('contains-task-list')) tokens[j].attrJoin('class', 'contains-task-list');
+        break;
+      }
+    }
+  });
+});
+
 // GitHub-style math, rendered with KaTeX: $inline$, $`inline`$, $$display$$ and ```math blocks.
 const tex = (src, displayMode) => katex.renderToString(src, { displayMode, throwOnError: false });
 
