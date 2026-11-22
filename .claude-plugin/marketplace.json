@@ -1,0 +1,11 @@
+{
+  "name": "mdview",
+  "owner": { "name": "GalacticQuasar" },
+  "plugins": [
+    {
+      "name": "mdview",
+      "source": "./claude-plugin",
+      "description": "/mdview opens Claude's last response in mdview, a Markdown viewer window with vim keys"
+    }
+  ]
+}

@@ -10,7 +10,9 @@ export const lastResponse = (messages: readonly SessionMessage[]): string =>
 
 // mdview reads the text from stdin and outlives this call. dash points a background
 // job's stdin at /dev/null before applying `<&0`, so the pipe is saved on fd 3 first.
-const LAUNCH = 'exec 3<&0; nohup node "$@" - <&3 3<&- >/dev/null 2>&1 &'
+// Once detached, mdview's errors go nowhere, so a missing command is caught before that.
+const LAUNCH = 'command -v mdview >/dev/null || exit 127; exec 3<&0; nohup mdview "$@" - <&3 3<&- >/dev/null 2>&1 &'
+const INSTALL = 'npm install -g @galacticquasar/mdview'
 
 // Output for the person only, kept out of what Claude reads.
 const say = (text: string) => ({ text, isTextDisplayOnly: true as const })
@@ -25,11 +27,9 @@ export const register: Register = (on, options) => {
     const messages = await $.session.messages({ last: 200 })
     const text = 'deny' in messages ? '' : lastResponse(messages)
     if (!text) return say('No response to show yet.')
-    // mdview's own errors go nowhere once it's detached, so check the one that's likely.
-    const mdview = `${$.plugin.root}/../mdview.mjs`
-    if (!(await $.fs.exists(mdview))) return say(`mdview not found at ${mdview}; load the plugin from the mdview repo.`)
     const args = String(options.args ?? '').split(/\s+/).filter(Boolean)
-    await $.process.run(['sh', '-c', LAUNCH, 'sh', mdview, ...args], { stdin: text })
+    const { exitCode } = await $.process.run(['sh', '-c', LAUNCH, 'sh', ...args], { stdin: text })
+    if (exitCode === 127) return say(`The mdview command isn't on PATH. Install it with: ${INSTALL}`)
     return say('Opened in mdview.')
   })
 }

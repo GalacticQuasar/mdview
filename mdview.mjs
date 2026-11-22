@@ -8,10 +8,14 @@ import path from 'node:path';
 import os from 'node:os';
 import { spawn, execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import { createRequire } from 'node:module';
 import { render, isMarkdown, escapeHtml } from './render.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
-const MODULES = path.join(HERE, 'node_modules');
+// Vendored files are found through Node's resolution, not HERE/node_modules, since a
+// package manager may hoist dependencies out of mdview's own folder.
+const vendored = createRequire(import.meta.url).resolve;
+const readVendored = (f) => fs.readFileSync(vendored(f), 'utf8');
 
 // ---------- args ----------
 
@@ -24,7 +28,7 @@ const isBinary = (p) => {
   return buf.subarray(0, n).includes(0);
 };
 
-const USAGE = `usage: mdview <file | -> [--size WxH] [--pos X,Y] [--no-open]`;
+const USAGE = `usage: mdview <file | -> [--size WxH] [--pos X,Y] [--no-open] [--version]`;
 const opts = { size: null, pos: null, open: true, file: null };
 const argv = process.argv.slice(2);
 for (let i = 0; i < argv.length; i++) {
@@ -33,6 +37,10 @@ for (let i = 0; i < argv.length; i++) {
   else if (a === '--pos') opts.pos = argv[++i];
   else if (a === '--no-open') opts.open = false;
   else if (a === '-h' || a === '--help') { console.log(USAGE); process.exit(0); }
+  else if (a === '-v' || a === '--version') {
+    console.log(JSON.parse(fs.readFileSync(path.join(HERE, 'package.json'), 'utf8')).version);
+    process.exit(0);
+  }
   else if (!opts.file) opts.file = a;
   else { console.error(USAGE); process.exit(1); }
 }
@@ -68,15 +76,15 @@ const renderFile = (p) => render(isStdin(p) ? stdin : fs.readFileSync(p, 'utf8')
 
 // ---------- page ----------
 
-const KATEX = path.join(MODULES, 'katex/dist');
+const KATEX = path.dirname(vendored('katex/dist/katex.min.css'));
 const css = [
   'github-markdown-css/github-markdown.css',
   'markdown-it-github-alerts/styles/github-base.css',
   'markdown-it-github-alerts/styles/github-colors-light.css',
   'markdown-it-github-alerts/styles/github-colors-dark-media.css',
-].map((f) => fs.readFileSync(path.join(MODULES, f), 'utf8')).join('\n')
-  + `\n@media (prefers-color-scheme: light) {${fs.readFileSync(path.join(MODULES, 'highlight.js/styles/github.css'), 'utf8')}}`
-  + `\n@media (prefers-color-scheme: dark) {${fs.readFileSync(path.join(MODULES, 'highlight.js/styles/github-dark.css'), 'utf8')}}`
+].map(readVendored).join('\n')
+  + `\n@media (prefers-color-scheme: light) {${readVendored('highlight.js/styles/github.css')}}`
+  + `\n@media (prefers-color-scheme: dark) {${readVendored('highlight.js/styles/github-dark.css')}}`
   // The stylesheet is inlined, so point its relative font URLs at the /__katex/ route.
   + '\n' + fs.readFileSync(path.join(KATEX, 'katex.min.css'), 'utf8').replaceAll('url(fonts/', 'url(/__katex/fonts/')
   + '\n' + fs.readFileSync(path.join(HERE, 'page.css'), 'utf8');
@@ -233,13 +241,18 @@ function profileDir(browser) {
   const name = browserName(browser);
   if (process.platform === 'darwin') return path.join(os.homedir(), 'Library', 'Caches', 'mdview', name);
   if (!isWSL) return path.join(process.env.XDG_CACHE_HOME ?? path.join(os.homedir(), '.cache'), 'mdview', name);
-  const cache = path.join(HERE, '.localappdata');
+  // Asking cmd.exe is slow, so the answer is cached. Not in mdview's own folder, which
+  // is read-only after a global npm install.
+  const cache = path.join(process.env.XDG_CACHE_HOME ?? path.join(os.homedir(), '.cache'), 'mdview', 'localappdata');
   let local;
   try { local = fs.readFileSync(cache, 'utf8').trim(); } catch {}
   if (!local) {
     local = execFileSync('cmd.exe', ['/c', 'echo %LOCALAPPDATA%'], { cwd: '/mnt/c', stdio: ['ignore', 'pipe', 'ignore'] })
       .toString().trim();
-    fs.writeFileSync(cache, local);
+    try {
+      fs.mkdirSync(path.dirname(cache), { recursive: true });
+      fs.writeFileSync(cache, local);
+    } catch {}
   }
   return `${local}\\mdview\\${name}`;
 }

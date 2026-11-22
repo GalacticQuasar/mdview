@@ -2,6 +2,12 @@
   "name": "mdview",
   "version": "0.1.0",
   "description": "/mdview opens Claude's last response in mdview",
+  "author": {
+    "name": "GalacticQuasar"
+  },
+  "homepage": "https://github.com/GalacticQuasar/mdview",
+  "repository": "https://github.com/GalacticQuasar/mdview",
+  "license": "MIT",
   "userConfig": {
     "args": {
       "type": "string",
