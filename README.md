@@ -1,6 +1,8 @@
 # mdview
 
+[![npm](https://img.shields.io/npm/v/@galacticquasar/mdview)](https://www.npmjs.com/package/@galacticquasar/mdview)
 [![CI](https://github.com/GalacticQuasar/mdview/actions/workflows/ci.yml/badge.svg)](https://github.com/GalacticQuasar/mdview/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
 
 **A Markdown viewer you launch from the terminal.** `mdview README.md` opens the file, rendered the
 way GitHub renders it, in its own minimal window. You navigate with vim keys, and the window reloads
