@@ -23,7 +23,7 @@ The user's `~/.bashrc` wraps this as `mdview() { node ~/projects/mdview/mdview.m
 
 ## Publishing
 
-Published to npm as `@galacticquasar/mdview` (the command is still `mdview`, from `bin`). The unscoped `mdview` name belongs to an abandoned package (evanlucas/mdview, last published 2022); the user wants it and plans to ask for a transfer. `files` in `package.json` limits the package to the runtime files; check with `npm pack --dry-run`. To test it the way users get it: `npm pack`, then `npm install -g --prefix <tmp> <tarball>` and run `<tmp>/bin/mdview`. macOS and native Linux haven't been tested on real machines yet.
+Published to npm as `@galacticquasar/mdview` (the command is still `mdview`, from `bin`). `files` in `package.json` limits the package to the runtime files; check with `npm pack --dry-run`. To test it the way users get it: `npm pack`, then `npm install -g --prefix <tmp> <tarball>` and run `<tmp>/bin/mdview`. macOS and native Linux haven't been tested on real machines yet.
 
 ## Working with the user
 
