@@ -61,7 +61,7 @@ mdview runs the browser with its own profile, so it never touches your normal br
 ## Usage
 
 ```sh
-mdview <file | -> [--size WxH] [--pos X,Y] [--no-open]
+mdview <file | -> [--size WxH] [--pos X,Y] [--no-open] [--version]
 ```
 
 ```sh
