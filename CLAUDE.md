@@ -19,7 +19,25 @@ node --check mdview.mjs && node --check render.mjs && node --check page.js   # s
 npm test                                                 # run mdview.test.mjs
 ```
 
-The user's `~/.bashrc` wraps this as `mdview() { command mdview --size 933x1013 --pos 387,0 "$@"; }`, with `npm link` pointing `mdview` at this checkout. `--size`/`--pos` are in scaled pixels. The user's display is 2560×1600 at 150% Windows scaling, so it's 1707×1067 in scaled pixels, and screen-pixel numbers have to be divided by 1.5.
+## Dev setup
+
+On a new machine (needs Node 20+ and a supported browser, see `README.md`):
+
+1. Clone to `~/projects/mdview`, then run `npm install`, `npm link` (puts this checkout on `PATH` as `mdview`) and `npm test`. To test the published package instead, install it before linking.
+2. Wrap `mdview` in the shell's startup file (`~/.bashrc`, or `~/.zshrc` on macOS) to set a default window: `mdview() { command mdview --size WxH --pos X,Y "$@"; }`. Ask the user for the geometry on a new display.
+3. Load the Claude Code plugin from the checkout by merging this into `~/.claude/settings.json`, then restart Claude Code:
+
+   ```json
+   {
+     "env": { "CLAUDE_CODE_PLUGIN_DIRS": "~/projects/mdview/claude-plugin" },
+     "pluginConfigs": { "mdview": { "options": { "args": "--size WxH --pos X,Y" } } }
+   }
+   ```
+
+   Don't also install it from the marketplace, or two plugins register `/mdview`. The plugin can't see the shell function, so it needs its own geometry.
+4. Optional: `playwright-cli` for browser checks, and `npm login` to publish.
+
+The user's WSL machine uses `--size 933x1013 --pos 387,0`. `--size`/`--pos` are in scaled pixels. Its display is 2560×1600 at 150% Windows scaling, so 1707×1067 in scaled pixels, and screen-pixel numbers have to be divided by 1.5. Don't reuse these numbers on another machine.
 
 ## Publishing
 
@@ -95,7 +113,7 @@ Published to npm as `@galacticquasar/mdview` (the command is still `mdview`, fro
 
 CI (`.github/workflows/ci.yml`) runs the syntax check and `npm test` on Ubuntu and macOS with Node 20, 22 and 24 (20 is the `engines` minimum), then installs the `npm pack` tarball and checks that it serves a page with math rendered, which catches files missing from `files` and dependency-path problems. It has no browser, so it can't catch window or key problems on macOS.
 
-Browser behavior (keys, scrolling, history, cursor) has no automated tests. To verify keybindings and rendering, start a server with `--no-open` and drive it with `playwright-cli open --browser=chromium <url>`; plain `open` fails because Chrome isn't installed in WSL. Then `press` keys and `eval 'scrollY'`. Use `set-color-scheme dark` and `screenshot` for visual checks. `.playwright-cli/` output is gitignored. Stop stray servers with `pkill -f '^node mdview'`; a looser pattern can match and kill the shell running the command.
+Browser behavior (keys, scrolling, history, cursor) has no automated tests. To verify keybindings and rendering, start a server with `--no-open` and drive it with `playwright-cli open --browser=chromium <url>`; on the WSL machine, plain `open` fails because Chrome isn't installed in WSL. Then `press` keys and `eval 'scrollY'`. Use `set-color-scheme dark` and `screenshot` for visual checks. `.playwright-cli/` output is gitignored. Stop stray servers with `pkill -f '^node mdview'`; a looser pattern can match and kill the shell running the command.
 
 Pitfalls:
 - `playwright-cli click` scrolls the element into view first, which ruins scroll-position tests. Trigger clicks in the page instead, with `eval 'document.querySelector(...).click(), 1'`.
