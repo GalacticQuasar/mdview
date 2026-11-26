@@ -296,7 +296,37 @@ function openWindow(url) {
   const args = [`--app=${url}`, `--user-data-dir=${profile}`, '--no-first-run', '--no-default-browser-check'];
   if (opts.size) args.push(`--window-size=${opts.size.replace('x', ',')}`);
   if (opts.pos) args.push(`--window-position=${opts.pos}`);
+  if (process.platform === 'darwin') quitBrowserWhenLast(profile);
   spawn(browser, args, { detached: true, stdio: 'ignore', cwd: isWSL ? '/mnt/c' : undefined }).unref();
+}
+
+// macOS keeps an app running after its last window closes, so the profile's browser
+// would linger in the Dock. Every mdview that opens a window registers its pid next
+// to the profile, and the last one to exit quits the browser whose pid is in the
+// profile's SingletonLock ("<hostname>-<pid>"). Registered before spawning, so an
+// mdview that is just starting keeps the browser alive.
+function quitBrowserWhenLast(profile) {
+  const dir = `${profile}.instances`;
+  const me = path.join(dir, String(process.pid));
+  try {
+    fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(me, '');
+  } catch { return; }
+  process.on('exit', () => {
+    try {
+      fs.rmSync(me, { force: true });
+      const alive = fs.readdirSync(dir).filter((name) => {
+        try { process.kill(Number(name), 0); return true; } catch (e) {
+          if (e.code === 'EPERM') return true;
+          fs.rmSync(path.join(dir, name), { force: true });
+          return false;
+        }
+      });
+      if (alive.length) return;
+      const pid = Number(fs.readlinkSync(path.join(profile, 'SingletonLock')).split('-').pop());
+      if (pid > 0) process.kill(pid, 'SIGTERM');
+    } catch {}
+  });
 }
 
 // In WSL's NAT mode, Windows reaches WSL's localhost through a relay that takes up to

@@ -80,7 +80,7 @@ mdview README.md --size 900x1000 --pos 400,0
 | `--version`, `--help` | |
 
 Files ending in `.md`, `.markdown`, `.mdown` or `.mkd` are rendered as Markdown. Any other text
-file is shown verbatim, and binary files are refused. mdview exits when you close the window.
+file is shown verbatim, and binary files are refused. mdview exits when you close the window. On macOS, closing the last mdview window also quits the browser mdview started, so it doesn't stay in the Dock.
 
 ### Default window size
 
