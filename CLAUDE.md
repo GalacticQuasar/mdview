@@ -41,7 +41,7 @@ The user's WSL machine uses `--size 933x1013 --pos 387,0`. `--size`/`--pos` are 
 
 ## Publishing
 
-Published to npm as `@galacticquasar/mdview` (the command is still `mdview`, from `bin`). `files` in `package.json` limits the package to the runtime files; check with `npm pack --dry-run`. To test it the way users get it: `npm pack`, then `npm install -g --prefix <tmp> <tarball>` and run `<tmp>/bin/mdview`. macOS and native Linux haven't been tested on real machines yet.
+Published to npm as `@galacticquasar/mdview` (the command is still `mdview`, from `bin`). `files` in `package.json` limits the package to the runtime files; check with `npm pack --dry-run`. To test it the way users get it: `npm pack`, then `npm install -g --prefix <tmp> <tarball>` and run `<tmp>/bin/mdview`. macOS has been tested on the user's MacBook (with Chrome); native Linux hasn't been tested on a real machine yet.
 
 ## Working with the user
 
