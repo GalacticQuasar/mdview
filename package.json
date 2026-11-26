@@ -1,6 +1,6 @@
 {
   "name": "@galacticquasar/mdview",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "description": "Markdown viewer with vim keybindings and live reload, in a chromeless Chrome/Edge window",
   "keywords": [
     "markdown",
